@@ -72,7 +72,10 @@ using enable_if_t = typename enable_if<B, T>::type;
 // defined, but we still need to define it (as nothing) so that the mlpack
 // serialization shim compiles.
 #include <boost/serialization/serialization.hpp>
-#include <boost/serialization/vector.hpp>
+// We are not including boost/serialization/vector.hpp here. It is included in
+// mlpack/core/boost_backport/boost_backport_serialization.hpp because of
+// different behaviors of vector serialization in different versions of boost.
+// #include <boost/serialization/vector.hpp>
 #include <boost/serialization/map.hpp>
 // boost_backport.hpp handles the version and backporting of serialization (and
 // other) features.
@@ -82,8 +85,24 @@ using enable_if_t = typename enable_if<B, T>::type;
 #ifndef BOOST_PFTO
   #define BOOST_PFTO
 #endif
-#include <mlpack/core/data/serialization_shim.hpp>
+#include <mlpack/core/data/has_serialize.hpp>
 #include <mlpack/core/data/serialization_template_version.hpp>
+
+// If we have Boost 1.58 or older and are using C++14, the compilation is likely
+// to fail due to boost::visitor issues.  We will pre-emptively fail.
+#if __cplusplus > 201103L && BOOST_VERSION < 105900
+#error Use of C++14 mode with Boost < 1.59 is known to cause compilation \
+problems.  Instead specify the C++11 standard (-std=c++11 with gcc or clang), \
+or upgrade Boost to 1.59 or newer.
+#endif
+
+// On Visual Studio, disable C4519 (default arguments for function templates)
+// since it's by default an error, which doesn't even make any sense because
+// it's part of the C++11 standard.
+#ifdef _MSC_VER
+  #pragma warning(disable : 4519)
+  #define ARMA_USE_CXX11
+#endif
 
 // Now include Armadillo through the special mlpack extensions.
 #include <mlpack/core/arma_extend/arma_extend.hpp>
@@ -97,13 +116,6 @@ using enable_if_t = typename enable_if<B, T>::type;
 #include <mlpack/core/util/log.hpp>
 #include <mlpack/core/util/timers.hpp>
 
-// On Visual Studio, disable C4519 (default arguments for function templates)
-// since it's by default an error, which doesn't even make any sense because
-// it's part of the C++11 standard.
-#ifdef _MSC_VER
-  #pragma warning(disable : 4519)
-  #define ARMA_USE_CXX11
-#endif
 // This can be removed with Visual Studio supports an OpenMP version with
 // unsigned loop variables.
 #ifdef _WIN32

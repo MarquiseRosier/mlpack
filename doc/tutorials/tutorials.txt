@@ -18,6 +18,9 @@ start.
  - \ref iodoc
  - \ref timer
  - \ref sample
+ - \ref cv
+ - \ref hpt
+ - \ref bindings
 
 @section method_tut Method-specific Tutorials
 
@@ -35,6 +38,7 @@ progress to complex, extensible uses.
  - \ref amftutorial
  - \ref cftutorial
  - \ref akfntutorial
+ - \ref cnetutorial
 
 @section policy_tut Policy Class Documentation
 
@@ -46,5 +50,6 @@ types.
  - \ref metrics
  - \ref kernels
  - \ref trees
+ - \ref optimizertutorial
 
 */

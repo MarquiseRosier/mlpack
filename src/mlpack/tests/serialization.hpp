@@ -36,16 +36,19 @@ void TestArmadilloSerialization(arma::Cube<CubeType>& x)
   // Use type_info name to get unique file name for serialization test files.
   std::string fileName = FilterFileName(typeid(IArchiveType).name());
   std::ofstream ofs(fileName, std::ios::binary);
-  OArchiveType o(ofs);
-
   bool success = true;
-  try
+
   {
-    o << BOOST_SERIALIZATION_NVP(x);
-  }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
+    OArchiveType o(ofs);
+
+    try
+    {
+      o << BOOST_SERIALIZATION_NVP(x);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      success = false;
+    }
   }
 
   BOOST_REQUIRE_EQUAL(success, true);
@@ -55,16 +58,20 @@ void TestArmadilloSerialization(arma::Cube<CubeType>& x)
   arma::Cube<CubeType> orig(x);
   success = true;
   std::ifstream ifs(fileName, std::ios::binary);
-  IArchiveType i(ifs);
 
-  try
   {
-    i >> BOOST_SERIALIZATION_NVP(x);
+    IArchiveType i(ifs);
+
+    try
+    {
+      i >> BOOST_SERIALIZATION_NVP(x);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      success = false;
+    }
   }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
-  }
+  ifs.close();
 
   remove(fileName.c_str());
 
@@ -115,16 +122,19 @@ void TestArmadilloSerialization(MatType& x)
   // First save it.
   std::string fileName = FilterFileName(typeid(IArchiveType).name());
   std::ofstream ofs(fileName, std::ios::binary);
-  OArchiveType o(ofs);
-
   bool success = true;
-  try
+
   {
-    o << BOOST_SERIALIZATION_NVP(x);
-  }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
+    OArchiveType o(ofs);
+
+    try
+    {
+      o << BOOST_SERIALIZATION_NVP(x);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      success = false;
+    }
   }
 
   BOOST_REQUIRE_EQUAL(success, true);
@@ -134,16 +144,20 @@ void TestArmadilloSerialization(MatType& x)
   MatType orig(x);
   success = true;
   std::ifstream ifs(fileName, std::ios::binary);
-  IArchiveType i(ifs);
 
-  try
   {
-    i >> BOOST_SERIALIZATION_NVP(x);
+    IArchiveType i(ifs);
+
+    try
+    {
+      i >> BOOST_SERIALIZATION_NVP(x);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      success = false;
+    }
   }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
-  }
+  ifs.close();
 
   remove(fileName.c_str());
 
@@ -180,31 +194,39 @@ void SerializeObject(T& t, T& newT)
 {
   std::string fileName = FilterFileName(typeid(T).name());
   std::ofstream ofs(fileName, std::ios::binary);
-  OArchiveType o(ofs);
-
   bool success = true;
-  try
+
   {
-    o << data::CreateNVP(t, "t");
-  }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
+    OArchiveType o(ofs);
+
+    try
+    {
+      o << BOOST_SERIALIZATION_NVP(t);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      std::cerr << e.what() << std::endl;
+      success = false;
+    }
   }
   ofs.close();
 
   BOOST_REQUIRE_EQUAL(success, true);
 
   std::ifstream ifs(fileName, std::ios::binary);
-  IArchiveType i(ifs);
 
-  try
   {
-    i >> data::CreateNVP(newT, "t");
-  }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
+    IArchiveType i(ifs);
+
+    try
+    {
+      i >> BOOST_SERIALIZATION_NVP(newT);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      std::cout << e.what() << "\n";
+      success = false;
+    }
   }
   ifs.close();
 
@@ -217,12 +239,12 @@ void SerializeObject(T& t, T& newT)
 template<typename T>
 void SerializeObjectAll(T& t, T& xmlT, T& textT, T& binaryT)
 {
+  SerializeObject<T, boost::archive::xml_iarchive,
+      boost::archive::xml_oarchive>(t, xmlT);
   SerializeObject<T, boost::archive::text_iarchive,
       boost::archive::text_oarchive>(t, textT);
   SerializeObject<T, boost::archive::binary_iarchive,
       boost::archive::binary_oarchive>(t, binaryT);
-  SerializeObject<T, boost::archive::xml_iarchive,
-      boost::archive::xml_oarchive>(t, xmlT);
 }
 
 // Save and load a non-default-constructible mlpack object.
@@ -231,31 +253,38 @@ void SerializePointerObject(T* t, T*& newT)
 {
   std::string fileName = FilterFileName(typeid(T).name());
   std::ofstream ofs(fileName, std::ios::binary);
-  OArchiveType o(ofs);
-
   bool success = true;
-  try
+
   {
-    o << data::CreateNVP(*t, "t");
-  }
-  catch (boost::archive::archive_exception& e)
-  {
-    success = false;
+    OArchiveType o(ofs);
+    try
+    {
+      o << BOOST_SERIALIZATION_NVP(t);
+    }
+    catch (boost::archive::archive_exception& e)
+    {
+      std::cout << e.what() << "\n";
+      success = false;
+    }
   }
   ofs.close();
 
   BOOST_REQUIRE_EQUAL(success, true);
 
   std::ifstream ifs(fileName, std::ios::binary);
-  IArchiveType i(ifs);
 
-  try
   {
-    newT = new T(i);
-  }
-  catch (std::exception& e)
-  {
-    success = false;
+    IArchiveType i(ifs);
+
+    try
+    {
+      i >> BOOST_SERIALIZATION_NVP(newT);
+    }
+    catch (std::exception& e)
+    {
+      std::cout << e.what() << "\n";
+      success = false;
+    }
   }
   ifs.close();
 
@@ -285,6 +314,11 @@ void CheckMatrices(const arma::Mat<size_t>& x,
                    const arma::Mat<size_t>& xmlX,
                    const arma::Mat<size_t>& textX,
                    const arma::Mat<size_t>& binaryX);
+
+void CheckMatrices(const arma::cube& x,
+                   const arma::cube& xmlX,
+                   const arma::cube& textX,
+                   const arma::cube& binaryX);
 
 } // namespace mlpack
 

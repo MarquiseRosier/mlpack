@@ -12,7 +12,7 @@
 #include <mlpack/core.hpp>
 #include <mlpack/core/optimizers/ada_grad/ada_grad.hpp>
 #include <mlpack/methods/logistic_regression/logistic_regression.hpp>
-#include <mlpack/core/optimizers/sgd/test_function.hpp>
+#include <mlpack/core/optimizers/problems/sgd_test_function.hpp>
 
 #include <boost/test/unit_test.hpp>
 #include "test_tools.hpp"
@@ -28,12 +28,12 @@ using namespace mlpack::regression;
 BOOST_AUTO_TEST_SUITE(AdaGradTest);
 
 /**
- *Tests the Adagrad optimizer using a simple test function.
+ * Tests the Adagrad optimizer using a simple test function.
  */
 BOOST_AUTO_TEST_CASE(SimpleAdaGradTestFunction)
 {
   SGDTestFunction f;
-  AdaGrad optimizer(0.99, 1e-8, 5000000, 1e-9, true);
+  AdaGrad optimizer(0.99, 1, 1e-8, 5000000, 1e-9, true);
 
   arma::mat coordinates = f.GetInitialPoint();
   optimizer.Optimize(f, coordinates);
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(AdaGradLogisticRegressionTest)
     testResponses[i] = 1;
   }
 
-  AdaGrad adagrad(0.99, 1e-8, 5000000, 1e-9, true);
+  AdaGrad adagrad(0.99, 32, 1e-8, 5000000, 1e-9, true);
   LogisticRegression<> lr(shuffledData, shuffledResponses, adagrad, 0.5);
 
   // Ensure that the error is close to zero.

@@ -94,6 +94,9 @@ class HMMModel
   //! Copy assignment operator.
   HMMModel& operator=(const HMMModel& other)
   {
+    if (this == &other)
+      return *this;
+
     delete discreteHMM;
     delete gaussianHMM;
     delete gmmHMM;
@@ -141,9 +144,9 @@ class HMMModel
 
   //! Serialize the model.
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */)
+  void serialize(Archive& ar, const unsigned int /* version */)
   {
-    ar & data::CreateNVP(type, "type");
+    ar & BOOST_SERIALIZATION_NVP(type);
 
     // If necessary, clean memory.
     if (Archive::is_loading::value)
@@ -158,12 +161,37 @@ class HMMModel
     }
 
     if (type == HMMType::DiscreteHMM)
-      ar & data::CreateNVP(discreteHMM, "discreteHMM");
+      ar & BOOST_SERIALIZATION_NVP(discreteHMM);
     else if (type == HMMType::GaussianHMM)
-      ar & data::CreateNVP(gaussianHMM, "gaussianHMM");
+      ar & BOOST_SERIALIZATION_NVP(gaussianHMM);
     else if (type == HMMType::GaussianMixtureModelHMM)
-      ar & data::CreateNVP(gmmHMM, "gmmHMM");
+      ar & BOOST_SERIALIZATION_NVP(gmmHMM);
   }
+
+  // Accessor method for type of HMM
+  HMMType Type() { return type; }
+
+  /**
+   * Accessor methods for discreteHMM, gaussianHMM and gmmHMM.
+   * Note that an instatiation of this class will only contain one type of HMM
+   * (as indicated by the "type" instance variable) - the other two pointers
+   * will be NULL.
+   *
+   * For instance, if the HMMModel object holds a discrete HMM, then:
+   * type         --> DiscreteHMM
+   * gaussianHMM  --> NULL
+   * gmmHMM       --> NULL
+   * discreteHMM  --> HMM<DiscreteDistribution> object
+   * and hence, calls to GMMHMM() and GaussianHMM() will return NULL. Only the
+   * call to DiscreteHMM() will return a non NULL pointer.
+   *
+   * Hence, in practice, a user should be careful to first check the type of HMM
+   * (by calling the Type() accessor) and then perform subsequent actions, to
+   * avoid null pointer dereferences.
+   */
+  HMM<distribution::DiscreteDistribution>* DiscreteHMM() { return discreteHMM; }
+  HMM<distribution::GaussianDistribution>* GaussianHMM() { return gaussianHMM; }
+  HMM<gmm::GMM>* GMMHMM() { return gmmHMM; }
 };
 
 } // namespace hmm

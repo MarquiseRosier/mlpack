@@ -23,24 +23,30 @@
 #include "visitor/set_input_height_visitor.hpp"
 #include "visitor/set_input_width_visitor.hpp"
 
+#include <boost/serialization/variant.hpp>
+
 namespace mlpack {
 namespace ann /** Artificial Neural Network. */ {
 
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>::FFN(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::FFN(
     OutputLayerType outputLayer, InitializationRuleType initializeRule) :
     outputLayer(std::move(outputLayer)),
     initializeRule(std::move(initializeRule)),
     width(0),
     height(0),
-    reset(false)
+    reset(false),
+    numFunctions(0),
+    deterministic(true)
 {
   /* Nothing to do here */
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>::FFN(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::FFN(
     arma::mat predictors,
     arma::mat responses,
     OutputLayerType outputLayer,
@@ -57,15 +63,17 @@ FFN<OutputLayerType, InitializationRuleType>::FFN(
   numFunctions = this->responses.n_cols;
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>::~FFN()
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::~FFN()
 {
   std::for_each(network.begin(), network.end(),
       boost::apply_visitor(deleteVisitor));
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::ResetData(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::ResetData(
     arma::mat predictors, arma::mat responses)
 {
   numFunctions = responses.n_cols;
@@ -75,14 +83,13 @@ void FFN<OutputLayerType, InitializationRuleType>::ResetData(
   ResetDeterministic();
 
   if (!reset)
-  {
     ResetParameters();
-  }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
 template<typename OptimizerType>
-void FFN<OutputLayerType, InitializationRuleType>::Train(
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Train(
       arma::mat predictors,
       arma::mat responses,
       OptimizerType& optimizer)
@@ -98,9 +105,10 @@ void FFN<OutputLayerType, InitializationRuleType>::Train(
       << "." << std::endl;
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
 template<typename OptimizerType>
-void FFN<OutputLayerType, InitializationRuleType>::Train(
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Train(
     arma::mat predictors, arma::mat responses)
 {
   numFunctions = responses.n_cols;
@@ -112,9 +120,7 @@ void FFN<OutputLayerType, InitializationRuleType>::Train(
   ResetDeterministic();
 
   if (!reset)
-  {
     ResetParameters();
-  }
 
   OptimizerType optimizer;
 
@@ -127,8 +133,9 @@ void FFN<OutputLayerType, InitializationRuleType>::Train(
       << "." << std::endl;
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Forward(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Forward(
     arma::mat inputs, arma::mat& results)
 {
   if (parameter.is_empty())
@@ -145,34 +152,33 @@ void FFN<OutputLayerType, InitializationRuleType>::Forward(
   results = boost::apply_visitor(outputParameterVisitor, network.back());
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-double FFN<OutputLayerType, InitializationRuleType>::Backward(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+double FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Backward(
     arma::mat targets, arma::mat& gradients)
 {
-  currentTarget = std::move(targets);
   double res = outputLayer.Forward(std::move(boost::apply_visitor(
-      outputParameterVisitor, network.back())), std::move(currentTarget));
+      outputParameterVisitor, network.back())), std::move(targets));
 
   outputLayer.Backward(std::move(boost::apply_visitor(outputParameterVisitor,
-      network.back())), std::move(currentTarget), std::move(error));
+      network.back())), std::move(targets), std::move(error));
 
   gradients = arma::zeros<arma::mat>(parameter.n_rows, parameter.n_cols);
 
   Backward();
   ResetGradients(gradients);
-  Gradient();
+  Gradient(std::move(currentInput));
 
   return res;
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Predict(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Predict(
     arma::mat predictors, arma::mat& results)
 {
   if (parameter.is_empty())
-  {
     ResetParameters();
-  }
 
   if (!deterministic)
   {
@@ -200,14 +206,28 @@ void FFN<OutputLayerType, InitializationRuleType>::Predict(
   }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-double FFN<OutputLayerType, InitializationRuleType>::Evaluate(
-    const arma::mat& /* parameters */, const size_t i, const bool deterministic)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+double FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Evaluate(
+    const arma::mat& parameters)
+{
+  double res = 0;
+  for (size_t i = 0; i < predictors.n_cols; ++i)
+    res += Evaluate(parameters, i, true);
+
+  return res;
+}
+
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+double FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Evaluate(
+    const arma::mat& /* parameters */,
+    const size_t begin,
+    const size_t batchSize,
+    const bool deterministic)
 {
   if (parameter.is_empty())
-  {
     ResetParameters();
-  }
 
   if (deterministic != this->deterministic)
   {
@@ -215,26 +235,26 @@ double FFN<OutputLayerType, InitializationRuleType>::Evaluate(
     ResetDeterministic();
   }
 
-  currentInput = predictors.unsafe_col(i);
-  currentTarget = responses.unsafe_col(i);
-
-  Forward(std::move(currentInput));
-  double res = outputLayer.Forward(std::move(boost::apply_visitor(
-      outputParameterVisitor, network.back())), std::move(currentTarget));
+  Forward(std::move(predictors.cols(begin, begin + batchSize - 1)));
+  double res = outputLayer.Forward(
+      std::move(boost::apply_visitor(outputParameterVisitor, network.back())),
+      std::move(responses.cols(begin, begin + batchSize - 1)));
 
   return res;
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Gradient(
-    const arma::mat& parameters, const size_t i, arma::mat& gradient)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Gradient(
+    const arma::mat& parameters,
+    const size_t begin,
+    arma::mat& gradient,
+    const size_t batchSize)
 {
   if (gradient.is_empty())
   {
     if (parameter.is_empty())
-    {
       ResetParameters();
-    }
 
     gradient = arma::zeros<arma::mat>(parameter.n_rows, parameter.n_cols);
   }
@@ -243,37 +263,52 @@ void FFN<OutputLayerType, InitializationRuleType>::Gradient(
     gradient.zeros();
   }
 
-  Evaluate(parameters, i, false);
+  Evaluate(parameters, begin, batchSize, false);
 
-  outputLayer.Backward(std::move(boost::apply_visitor(outputParameterVisitor,
-      network.back())), std::move(currentTarget), std::move(error));
+  outputLayer.Backward(
+      std::move(boost::apply_visitor(outputParameterVisitor, network.back())),
+      std::move(responses.cols(begin, begin + batchSize - 1)),
+      std::move(error));
 
   Backward();
   ResetGradients(gradient);
-  Gradient();
+  Gradient(std::move(predictors.cols(begin, begin + batchSize - 1)));
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::ResetParameters()
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Shuffle()
+{
+  math::ShuffleData(predictors, responses, predictors, responses);
+}
+
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::ResetParameters()
 {
   ResetDeterministic();
 
   // Reset the network parameter with the given initialization rule.
-  NetworkInitialization<InitializationRuleType> networkInit(initializeRule);
+  NetworkInitialization<InitializationRuleType,
+                        CustomLayers...> networkInit(initializeRule);
   networkInit.Initialize(network, parameter);
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::ResetDeterministic()
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::ResetDeterministic()
 {
   DeterministicSetVisitor deterministicSetVisitor(deterministic);
   std::for_each(network.begin(), network.end(),
       boost::apply_visitor(deterministicSetVisitor));
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::ResetGradients(
-    arma::mat& gradient)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::ResetGradients(arma::mat& gradient)
 {
   size_t offset = 0;
   for (size_t i = 0; i < network.size(); ++i)
@@ -283,8 +318,10 @@ void FFN<OutputLayerType, InitializationRuleType>::ResetGradients(
   }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Forward(arma::mat&& input)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::Forward(arma::mat&& input)
 {
   boost::apply_visitor(ForwardVisitor(std::move(input), std::move(
       boost::apply_visitor(outputParameterVisitor, network.front()))),
@@ -335,13 +372,12 @@ void FFN<OutputLayerType, InitializationRuleType>::Forward(arma::mat&& input)
   }
 
   if (!reset)
-  {
     reset = true;
-  }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Backward()
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::Backward()
 {
   boost::apply_visitor(BackwardVisitor(std::move(boost::apply_visitor(
       outputParameterVisitor, network.back())), std::move(error), std::move(
@@ -357,10 +393,12 @@ void FFN<OutputLayerType, InitializationRuleType>::Backward()
   }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Gradient()
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::Gradient(arma::mat&& input)
 {
-  boost::apply_visitor(GradientVisitor(std::move(currentInput), std::move(
+  boost::apply_visitor(GradientVisitor(std::move(input), std::move(
       boost::apply_visitor(deltaVisitor, network[1]))), network.front());
 
   for (size_t i = 1; i < network.size() - 1; ++i)
@@ -375,16 +413,26 @@ void FFN<OutputLayerType, InitializationRuleType>::Gradient()
       network[network.size() - 1]);
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
 template<typename Archive>
-void FFN<OutputLayerType, InitializationRuleType>::Serialize(
+void FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::serialize(
     Archive& ar, const unsigned int /* version */)
 {
-  ar & data::CreateNVP(parameter, "parameter");
-  ar & data::CreateNVP(width, "width");
-  ar & data::CreateNVP(height, "height");
-  ar & data::CreateNVP(currentInput, "currentInput");
-  ar & data::CreateNVP(currentTarget, "currentTarget");
+  ar & BOOST_SERIALIZATION_NVP(parameter);
+  ar & BOOST_SERIALIZATION_NVP(width);
+  ar & BOOST_SERIALIZATION_NVP(height);
+  ar & BOOST_SERIALIZATION_NVP(currentInput);
+
+  // Be sure to clear other layers before loading.
+  if (Archive::is_loading::value)
+  {
+    std::for_each(network.begin(), network.end(),
+        boost::apply_visitor(deleteVisitor));
+    network.clear();
+  }
+
+  ar & BOOST_SERIALIZATION_NVP(network);
 
   // If we are loading, we need to initialize the weights.
   if (Archive::is_loading::value)
@@ -399,11 +447,16 @@ void FFN<OutputLayerType, InitializationRuleType>::Serialize(
 
       boost::apply_visitor(resetVisitor, network[i]);
     }
+
+    deterministic = true;
+    ResetDeterministic();
   }
 }
 
-template<typename OutputLayerType, typename InitializationRuleType>
-void FFN<OutputLayerType, InitializationRuleType>::Swap(FFN& network)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+void FFN<OutputLayerType, InitializationRuleType,
+         CustomLayers...>::Swap(FFN& network)
 {
   std::swap(outputLayer, network.outputLayer);
   std::swap(initializeRule, network.initializeRule);
@@ -417,7 +470,6 @@ void FFN<OutputLayerType, InitializationRuleType>::Swap(FFN& network)
   std::swap(numFunctions, network.numFunctions);
   std::swap(error, network.error);
   std::swap(currentInput, network.currentInput);
-  std::swap(currentTarget, network.currentTarget);
   std::swap(deterministic, network.deterministic);
   std::swap(delta, network.delta);
   std::swap(inputParameter, network.inputParameter);
@@ -425,8 +477,9 @@ void FFN<OutputLayerType, InitializationRuleType>::Swap(FFN& network)
   std::swap(gradient, network.gradient);
 };
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>::FFN(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::FFN(
     const FFN& network):
     outputLayer(network.outputLayer),
     initializeRule(network.initializeRule),
@@ -439,7 +492,6 @@ FFN<OutputLayerType, InitializationRuleType>::FFN(
     numFunctions(network.numFunctions),
     error(network.error),
     currentInput(network.currentInput),
-    currentTarget(network.currentTarget),
     deterministic(network.deterministic),
     delta(network.delta),
     inputParameter(network.inputParameter),
@@ -454,8 +506,9 @@ FFN<OutputLayerType, InitializationRuleType>::FFN(
   }
 };
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>::FFN(
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>::FFN(
     FFN&& network):
     outputLayer(std::move(network.outputLayer)),
     initializeRule(std::move(network.initializeRule)),
@@ -468,7 +521,6 @@ FFN<OutputLayerType, InitializationRuleType>::FFN(
     numFunctions(network.numFunctions),
     error(std::move(network.error)),
     currentInput(std::move(network.currentInput)),
-    currentTarget(std::move(network.currentTarget)),
     deterministic(network.deterministic),
     delta(std::move(network.delta)),
     inputParameter(std::move(network.inputParameter)),
@@ -478,9 +530,11 @@ FFN<OutputLayerType, InitializationRuleType>::FFN(
   this->network = std::move(network.network);
 };
 
-template<typename OutputLayerType, typename InitializationRuleType>
-FFN<OutputLayerType, InitializationRuleType>&
-FFN<OutputLayerType, InitializationRuleType>::operator = (FFN network)
+template<typename OutputLayerType, typename InitializationRuleType,
+         typename... CustomLayers>
+FFN<OutputLayerType, InitializationRuleType, CustomLayers...>&
+FFN<OutputLayerType, InitializationRuleType,
+    CustomLayers...>::operator = (FFN network)
 {
   Swap(network);
   return *this;

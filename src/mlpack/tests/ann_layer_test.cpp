@@ -14,6 +14,7 @@
 #include <mlpack/methods/ann/layer/layer.hpp>
 #include <mlpack/methods/ann/layer/layer_types.hpp>
 #include <mlpack/methods/ann/init_rules/random_init.hpp>
+#include <mlpack/methods/ann/init_rules/const_init.hpp>
 #include <mlpack/methods/ann/init_rules/nguyen_widrow_init.hpp>
 #include <mlpack/methods/ann/ffn.hpp>
 #include <mlpack/methods/ann/rnn.hpp>
@@ -26,7 +27,7 @@ using namespace mlpack::ann;
 
 BOOST_AUTO_TEST_SUITE(ANNLayerTest);
 
-// Helper function whcih calls the Reset function of the given module.
+// Helper function which calls the Reset function of the given module.
 template<class T>
 void ResetFunction(
     T& layer,
@@ -151,7 +152,7 @@ double CheckGradient(FunctionType& function, const double eps = 1e-7)
 
   estGradient = arma::zeros(orgGradient.n_rows, orgGradient.n_cols);
 
-  // compute numeric approximations to gradient.
+  // Compute numeric approximations to gradient.
   for (size_t i = 0; i < orgGradient.n_elem; ++i)
   {
     double tmp = function.Parameters()(i);
@@ -252,8 +253,8 @@ BOOST_AUTO_TEST_CASE(GradientAddLayerTest)
     double Gradient(arma::mat& gradient) const
     {
       arma::mat output;
-      double error = model->Evaluate(model->Parameters(), 0);
-      model->Gradient(model->Parameters(), 0, gradient);
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
       return error;
     }
 
@@ -354,7 +355,7 @@ BOOST_AUTO_TEST_CASE(SimpleDropoutLayerTest)
 
 /**
  * Perform dropout x times using ones as input, sum the number of ones and
- * validate that the layer is is producing approximately the right number of
+ * validate that the layer is producing approximately the correct number of
  * ones.
  */
 BOOST_AUTO_TEST_CASE(DropoutProbabilityTest)
@@ -473,8 +474,8 @@ BOOST_AUTO_TEST_CASE(GradientLinearLayerTest)
     double Gradient(arma::mat& gradient) const
     {
       arma::mat output;
-      double error = model->Evaluate(model->Parameters(), 0);
-      model->Gradient(model->Parameters(), 0, gradient);
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
       return error;
     }
 
@@ -531,7 +532,7 @@ BOOST_AUTO_TEST_CASE(JacobianLinearNoBiasLayerTest)
 /**
  * LinearNoBias layer numerically gradient test.
  */
-BOOST_AUTO_TEST_CASE(GradientLinearNoBiadLayerTest)
+BOOST_AUTO_TEST_CASE(GradientLinearNoBiasLayerTest)
 {
   // LinearNoBias function gradient instantiation.
   struct GradientFunction
@@ -556,8 +557,8 @@ BOOST_AUTO_TEST_CASE(GradientLinearNoBiadLayerTest)
     double Gradient(arma::mat& gradient) const
     {
       arma::mat output;
-      double error = model->Evaluate(model->Parameters(), 0);
-      model->Gradient(model->Parameters(), 0, gradient);
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
       return error;
     }
 
@@ -736,7 +737,44 @@ BOOST_AUTO_TEST_CASE(SimpleAddMergeLayerTest)
 }
 
 /**
- * LSTM layer numerically gradient test.
+ * Test the LSTM layer with a user defined rho parameter and without.
+ */
+BOOST_AUTO_TEST_CASE(LSTMRrhoTest)
+{
+  const size_t rho = 5;
+  arma::cube input = arma::randu(1, 1, 5);
+  arma::cube target = arma::ones(1, 1, 5);
+  RandomInitialization init(0.5, 0.5);
+
+  // Create model with user defined rho parameter.
+  RNN<NegativeLogLikelihood<>, RandomInitialization> modelA(
+      input, target, rho, false, NegativeLogLikelihood<>(), init);
+  modelA.Add<IdentityLayer<> >();
+  modelA.Add<Linear<> >(1, 10);
+
+  // Use LSTM layer with rho.
+  modelA.Add<LSTM<> >(10, 3, rho);
+  modelA.Add<LogSoftMax<> >();
+
+  // Create model without user defined rho parameter.
+  RNN<NegativeLogLikelihood<> > modelB(
+      input, target, rho, false, NegativeLogLikelihood<>(), init);
+  modelB.Add<IdentityLayer<> >();
+  modelB.Add<Linear<> >(1, 10);
+
+  // Use LSTM layer with rho = MAXSIZE.
+  modelB.Add<LSTM<> >(10, 3);
+  modelB.Add<LogSoftMax<> >();
+
+  optimization::StandardSGD opt(0.1, 1, 5, -100, false);
+  modelA.Train(input, target, opt);
+  modelB.Train(input, target, opt);
+
+  CheckMatrices(modelB.Parameters(), modelA.Parameters());
+}
+
+/**
+ * LSTM layer numerical gradient test.
  */
 BOOST_AUTO_TEST_CASE(GradientLSTMLayerTest)
 {
@@ -745,8 +783,8 @@ BOOST_AUTO_TEST_CASE(GradientLSTMLayerTest)
   {
     GradientFunction()
     {
-      input = arma::randu(5, 1);
-      target = arma::mat("1; 1; 1; 1; 1");
+      input = arma::randu(1, 1, 5);
+      target.ones(1, 1, 5);
       const size_t rho = 5;
 
       model = new RNN<NegativeLogLikelihood<> >(input, target, rho);
@@ -764,18 +802,198 @@ BOOST_AUTO_TEST_CASE(GradientLSTMLayerTest)
     double Gradient(arma::mat& gradient) const
     {
       arma::mat output;
-      double error = model->Evaluate(model->Parameters(), 0);
-      model->Gradient(model->Parameters(), 0, gradient);
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
       return error;
     }
 
     arma::mat& Parameters() { return model->Parameters(); }
 
     RNN<NegativeLogLikelihood<> >* model;
-    arma::mat input, target;
+    arma::cube input, target;
   } function;
 
   BOOST_REQUIRE_LE(CheckGradient(function), 1e-4);
+}
+
+/**
+ * Test the FastLSTM layer with a user defined rho parameter and without.
+ */
+BOOST_AUTO_TEST_CASE(FastLSTMRrhoTest)
+{
+  const size_t rho = 5;
+  arma::cube input = arma::randu(1, 1, 5);
+  arma::cube target = arma::ones(1, 1, 5);
+  RandomInitialization init(0.5, 0.5);
+
+  // Create model with user defined rho parameter.
+  RNN<NegativeLogLikelihood<>, RandomInitialization> modelA(
+      input, target, rho, false, NegativeLogLikelihood<>(), init);
+  modelA.Add<IdentityLayer<> >();
+  modelA.Add<Linear<> >(1, 10);
+
+  // Use FastLSTM layer with rho.
+  modelA.Add<FastLSTM<> >(10, 3, rho);
+  modelA.Add<LogSoftMax<> >();
+
+  // Create model without user defined rho parameter.
+  RNN<NegativeLogLikelihood<> > modelB(
+      input, target, rho, false, NegativeLogLikelihood<>(), init);
+  modelB.Add<IdentityLayer<> >();
+  modelB.Add<Linear<> >(1, 10);
+
+  // Use FastLSTM layer with rho = MAXSIZE.
+  modelB.Add<FastLSTM<> >(10, 3);
+  modelB.Add<LogSoftMax<> >();
+
+  optimization::StandardSGD opt(0.1, 1, 5, -100, false);
+  modelA.Train(input, target, opt);
+  modelB.Train(input, target, opt);
+
+  CheckMatrices(modelB.Parameters(), modelA.Parameters());
+}
+
+/**
+ * FastLSTM layer numerical gradient test.
+ */
+BOOST_AUTO_TEST_CASE(GradientFastLSTMLayerTest)
+{
+  // Fast LSTM function gradient instantiation.
+  struct GradientFunction
+  {
+    GradientFunction()
+    {
+      input = arma::randu(1, 1, 5);
+      target = arma::ones(1, 1, 5);
+      const size_t rho = 5;
+
+      model = new RNN<NegativeLogLikelihood<> >(input, target, rho);
+      model->Add<IdentityLayer<> >();
+      model->Add<Linear<> >(1, 10);
+      model->Add<FastLSTM<> >(10, 3, rho);
+      model->Add<LogSoftMax<> >();
+    }
+
+    ~GradientFunction()
+    {
+      delete model;
+    }
+
+    double Gradient(arma::mat& gradient) const
+    {
+      arma::mat output;
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
+      return error;
+    }
+
+    arma::mat& Parameters() { return model->Parameters(); }
+
+    RNN<NegativeLogLikelihood<> >* model;
+    arma::cube input, target;
+  } function;
+
+  // The threshold should be << 0.1 but since the Fast LSTM layer uses an
+  // approximation of the sigmoid function the estimated gradient is not
+  // correct.
+  BOOST_REQUIRE_LE(CheckGradient(function), 0.2);
+}
+
+/**
+ * Check if the gradients computed by GRU cell are close enough to the
+ * approximation of the gradients.
+ */
+BOOST_AUTO_TEST_CASE(GradientGRULayerTest)
+{
+  // GRU function gradient instantiation.
+  struct GradientFunction
+  {
+    GradientFunction()
+    {
+      input = arma::randu(1, 1, 5);
+      target = arma::ones(1, 1, 5);
+      const size_t rho = 5;
+
+      model = new RNN<NegativeLogLikelihood<> >(input, target, rho);
+      model->Add<IdentityLayer<> >();
+      model->Add<Linear<> >(1, 10);
+      model->Add<GRU<> >(10, 3, rho);
+      model->Add<LogSoftMax<> >();
+    }
+
+    ~GradientFunction()
+    {
+      delete model;
+    }
+
+    double Gradient(arma::mat& gradient) const
+    {
+      arma::mat output;
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
+      return error;
+    }
+
+    arma::mat& Parameters() { return model->Parameters(); }
+
+    RNN<NegativeLogLikelihood<> >* model;
+    arma::cube input, target;
+  } function;
+
+  BOOST_REQUIRE_LE(CheckGradient(function), 1e-4);
+}
+
+/**
+ * GRU layer manual forward test.
+ */
+BOOST_AUTO_TEST_CASE(ForwardGRULayerTest)
+{
+  GRU<> gru(3, 3, 5);
+
+  // Initialize the weights to all ones.
+  NetworkInitialization<ConstInitialization>
+    networkInit(ConstInitialization(1));
+  networkInit.Initialize(gru.Model(), gru.Parameters());
+
+  // Provide input of all ones.
+  arma::mat input = arma::ones(3, 1);
+  arma::mat output;
+
+  gru.Forward(std::move(input), std::move(output));
+
+  // Compute the z_t gate output.
+  arma::mat expectedOutput = arma::ones(3, 1);
+  expectedOutput *= -4;
+  expectedOutput = arma::exp(expectedOutput);
+  expectedOutput = arma::ones(3, 1) / (arma::ones(3, 1) + expectedOutput);
+  expectedOutput = (arma::ones(3, 1)  - expectedOutput) % expectedOutput;
+
+  // For the first input the output should be equal to the output of
+  // gate z_t as the previous output fed to the cell is all zeros.
+  BOOST_REQUIRE_LE(arma::as_scalar(arma::trans(output) * expectedOutput), 1e-2);
+
+  expectedOutput = output;
+
+  gru.Forward(std::move(input), std::move(output));
+
+  double s = arma::as_scalar(arma::sum(expectedOutput));
+
+  // Compute the value of z_t gate for the second input.
+  arma::mat z_t = arma::ones(3, 1);
+  z_t *= -(s + 4);
+  z_t = arma::exp(z_t);
+  z_t = arma::ones(3, 1) / (arma::ones(3, 1) + z_t);
+
+  // Compute the value of o_t gate for the second input.
+  arma::mat o_t = arma::ones(3, 1);
+  o_t *= -(arma::as_scalar(arma::sum(expectedOutput % z_t)) + 4);
+  o_t = arma::exp(o_t);
+  o_t = arma::ones(3, 1) / (arma::ones(3, 1) + o_t);
+
+  // Expected output for the second input.
+  expectedOutput = z_t % expectedOutput + (arma::ones(3, 1) - z_t) % o_t;
+
+  BOOST_REQUIRE_LE(arma::as_scalar(arma::trans(output) * expectedOutput), 1e-2);
 }
 
 /**
@@ -847,8 +1065,8 @@ BOOST_AUTO_TEST_CASE(GradientConcatLayerTest)
     double Gradient(arma::mat& gradient) const
     {
       arma::mat output;
-      double error = model->Evaluate(model->Parameters(), 0);
-      model->Gradient(model->Parameters(), 0, gradient);
+      double error = model->Evaluate(model->Parameters(), 0, 1);
+      model->Gradient(model->Parameters(), 0, gradient, 1);
       return error;
     }
 
@@ -924,6 +1142,179 @@ BOOST_AUTO_TEST_CASE(SimpleLogSoftmaxLayerTest)
   module.Backward(std::move(input), std::move(error), std::move(delta));
   BOOST_REQUIRE_SMALL(arma::accu(arma::abs(
       arma::mat("1.6487; 0.6487") - delta)), 1e-3);
+}
+
+/**
+ * Simple test for the Sigmoid Cross Entropy Layer.
+ */
+BOOST_AUTO_TEST_CASE(SimpleSigmoidCrossEntropyLayerTest)
+{
+  arma::mat input1, input2, input3, output, target1,
+            target2, target3, expectedOutput;
+  SigmoidCrossEntropyError<> module;
+
+  // Test the Forward function on a user generator input and compare it against
+  // the manually calculated result.
+  input1 = arma::mat("0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5");
+  target1 = arma::zeros(1, 8);
+  double error1 = module.Forward(std::move(input1), std::move(target1));
+  double expected = 0.97407699;
+  // Value computed using tensorflow.
+  BOOST_REQUIRE_SMALL(error1 / input1.n_elem - expected, 1e-7);
+
+  input2 = arma::mat("1 2 3 4 5");
+  target2 = arma::mat("0 0 1 0 1");
+  double error2 = module.Forward(std::move(input2), std::move(target2));
+  expected = 1.5027283;
+  BOOST_REQUIRE_SMALL(error2 / input2.n_elem - expected, 1e-6);
+
+  input3 = arma::mat("0 -1 -1 0 -1 0 0 -1");
+  target3 = arma::mat("0 -1 -1 0 -1 0 0 -1");
+  double error3 = module.Forward(std::move(input3), std::move(target3));
+  expected = 0.00320443;
+  BOOST_REQUIRE_SMALL(error3 / input3.n_elem - expected, 1e-6);
+
+  // Test the Backward function.
+  module.Backward(std::move(input1), std::move(target1), std::move(output));
+  expected = 0.62245929;
+  for (size_t i = 0; i < output.n_elem; i++)
+    BOOST_REQUIRE_SMALL(output(i) - expected, 1e-5);
+  BOOST_REQUIRE_EQUAL(output.n_rows, input1.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input1.n_cols);
+
+  expectedOutput = arma::mat(
+      "0.7310586 0.88079709 -0.04742587 0.98201376 -0.00669285");
+  module.Backward(std::move(input2), std::move(target2), std::move(output));
+  for (size_t i = 0; i < output.n_elem; i++)
+    BOOST_REQUIRE_SMALL(output(i) - expectedOutput(i), 1e-5);
+  BOOST_REQUIRE_EQUAL(output.n_rows, input2.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input2.n_cols);
+
+  module.Backward(std::move(input3), std::move(target3), std::move(output));
+  expectedOutput = arma::mat("0.5 1.2689414");
+  for (size_t i = 0; i < 8; ++i)
+  {
+    double el = output.at(0, i);
+    if (std::abs(input3.at(i) - 0.0) < 1e-5)
+      BOOST_REQUIRE_SMALL(el - expectedOutput[0], 2e-6);
+    else
+      BOOST_REQUIRE_SMALL(el - expectedOutput[1], 2e-6);
+  }
+  BOOST_REQUIRE_EQUAL(output.n_rows, input3.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input3.n_cols);
+}
+
+/*
+ * Simple test for the cross-entropy error performance function.
+ */
+BOOST_AUTO_TEST_CASE(SimpleCrossEntropyErrorLayerTest)
+{
+  arma::mat input1, input2, output, target1, target2;
+  CrossEntropyError<> module(1e-6);
+
+  // Test the Forward function on a user generator input and compare it against
+  // the manually calculated result.
+  input1 = arma::mat("0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5");
+  target1 = arma::zeros(1, 8);
+  double error1 = module.Forward(std::move(input1), std::move(target1));
+  BOOST_REQUIRE_SMALL(error1 - 8 * std::log(2), 2e-5);
+
+  input2 = arma::mat("0 1 1 0 1 0 0 1");
+  target2 = arma::mat("0 1 1 0 1 0 0 1");
+  double error2 = module.Forward(std::move(input2), std::move(target2));
+  BOOST_REQUIRE_SMALL(error2, 1e-5);
+
+  // Test the Backward function.
+  module.Backward(std::move(input1), std::move(target1), std::move(output));
+  for (double el : output)
+  {
+    // For the 0.5 constant vector we should get 1 / (1 - 0.5) = 2 everywhere.
+    BOOST_REQUIRE_SMALL(el - 2, 5e-6);
+  }
+  BOOST_REQUIRE_EQUAL(output.n_rows, input1.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input1.n_cols);
+
+  module.Backward(std::move(input2), std::move(target2), std::move(output));
+  for (size_t i = 0; i < 8; ++i)
+  {
+    double el = output.at(0, i);
+    if (input2.at(i) == 0)
+      BOOST_REQUIRE_SMALL(el - 1, 2e-6);
+    else
+      BOOST_REQUIRE_SMALL(el + 1, 2e-6);
+  }
+  BOOST_REQUIRE_EQUAL(output.n_rows, input2.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input2.n_cols);
+}
+
+/*
+ * Simple test for the mean squared error performance function.
+ */
+BOOST_AUTO_TEST_CASE(SimpleMeanSquaredErrorLayerTest)
+{
+  arma::mat input, output, target;
+  MeanSquaredError<> module;
+
+  // Test the Forward function on a user generator input and compare it against
+  // the manually calculated result.
+  input = arma::mat("1.0 0.0 1.0 0.0 -1.0 0.0 -1.0 0.0");
+  target = arma::zeros(1, 8);
+  double error = module.Forward(std::move(input), std::move(target));
+  BOOST_REQUIRE_EQUAL(error, 0.5);
+
+  // Test the Backward function.
+  module.Backward(std::move(input), std::move(target), std::move(output));
+  // We subtract a zero vector, so the output should be equal with the input.
+  CheckMatrices(input, output);
+  BOOST_REQUIRE_EQUAL(output.n_rows, input.n_rows);
+  BOOST_REQUIRE_EQUAL(output.n_cols, input.n_cols);
+
+  // Test the error function on a single input.
+  input = arma::mat("2");
+  target = arma::mat("3");
+  error = module.Forward(std::move(input), std::move(target));
+  BOOST_REQUIRE_EQUAL(error, 1.0);
+
+  // Test the Backward function on a single input.
+  module.Backward(std::move(input), std::move(target), std::move(output));
+  // Test whether the output is negative.
+  BOOST_REQUIRE_EQUAL(arma::accu(output), -1);
+  BOOST_REQUIRE_EQUAL(output.n_elem, 1);
+}
+
+/*
+ * Simple test for the BilinearInterpolation layer
+ */
+BOOST_AUTO_TEST_CASE(SimpleBilinearInterpolationLayerTest)
+{
+  // Tested output against tensorflow.image.resize_bilinear()
+  arma::mat input, output, unzoomedOutput, expectedOutput;
+  size_t inRowSize = 2;
+  size_t inColSize = 2;
+  size_t outRowSize = 5;
+  size_t outColSize = 5;
+  size_t depth = 1;
+  input.zeros(inRowSize * inColSize * depth, 1);
+  input[0] = 1.0;
+  input[1] = input[2] = 2.0;
+  input[3] = 3.0;
+  BilinearInterpolation<> layer(inRowSize, inColSize, outRowSize, outColSize,
+      depth);
+  expectedOutput = arma::mat("1.0000 1.4000 1.8000 2.0000 2.0000 \
+      1.4000 1.8000 2.2000 2.4000 2.4000 \
+      1.8000 2.2000 2.6000 2.8000 2.8000 \
+      2.0000 2.4000 2.8000 3.0000 3.0000 \
+      2.0000 2.4000 2.8000 3.0000 3.0000");
+  expectedOutput.reshape(25, 1);
+  layer.Forward(std::move(input), std::move(output));
+  CheckMatrices(output - expectedOutput, arma::zeros(output.n_rows), 1e-12);
+
+  expectedOutput = arma::mat("1.0000 1.9000 1.9000 2.8000");
+  expectedOutput.reshape(4, 1);
+  layer.Backward(std::move(output), std::move(output),
+      std::move(unzoomedOutput));
+  CheckMatrices(unzoomedOutput - expectedOutput,
+      arma::zeros(input.n_rows), 1e-12);
 }
 
 BOOST_AUTO_TEST_SUITE_END();

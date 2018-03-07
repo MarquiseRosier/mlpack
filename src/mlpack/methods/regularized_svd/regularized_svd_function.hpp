@@ -15,10 +15,19 @@
 
 #include <mlpack/prereqs.hpp>
 #include <mlpack/core/optimizers/sgd/sgd.hpp>
+#include <mlpack/core/optimizers/parallel_sgd/parallel_sgd.hpp>
+#include <mlpack/core/optimizers/parallel_sgd/decay_policies/exponential_backoff.hpp>
 
 namespace mlpack {
 namespace svd {
 
+/**
+ * The data is stored in a matrix of type MatType, so that this class can be
+ * used with both dense and sparse matrix types.
+ *
+ * @tparam MatType The matrix type of the dataset.
+ */
+template <typename MatType = arma::mat>
 class RegularizedSVDFunction
 {
  public:
@@ -31,9 +40,14 @@ class RegularizedSVDFunction
    * @param rank Rank used for matrix factorization.
    * @param lambda Regularization parameter used for optimization.
    */
-  RegularizedSVDFunction(const arma::mat& data,
+  RegularizedSVDFunction(const MatType& data,
                          const size_t rank,
                          const double lambda);
+
+  /**
+   * Shuffle the points in the dataset.  This may be used by optimizers.
+   */
+  void Shuffle();
 
   /**
    * Evaluates the cost function over all examples in the data.
@@ -47,10 +61,12 @@ class RegularizedSVDFunction
    * optimizer abstraction which uses one training example at a time.
    *
    * @param parameters Parameters(user/item matrices) of the decomposition.
-   * @param i Index of the training example to be used.
+   * @param start First index of the training examples to be used.
+   * @param batchSize Size of batch to evaluate.
    */
   double Evaluate(const arma::mat& parameters,
-                  const size_t i) const;
+                  const size_t start,
+                  const size_t batchSize = 1) const;
 
   /**
    * Evaluates the full gradient of the cost function over all the training
@@ -61,6 +77,24 @@ class RegularizedSVDFunction
    */
   void Gradient(const arma::mat& parameters,
                 arma::mat& gradient) const;
+
+  /**
+   * Evaluates the gradient of the cost function over one training example.
+   * This function is useful for optimizers like SGD. The type of the gradient
+   * parameter is a template argument to allow the computation of a sparse
+   * gradient.
+   *
+   * @tparam GradType The type of the gradient out-param.
+   * @param parameters Parameters(user/item matrices) of the decomposition.
+   * @param start The first index of the training examples to use.
+   * @param gradient Calculated gradient for the parameters.
+   * @param batchSize Size of batch to calculate gradient for.
+   */
+  template <typename GradType>
+  void Gradient(const arma::mat& parameters,
+                const size_t start,
+                GradType& gradient,
+                const size_t batchSize = 1) const;
 
   //! Return the initial point for the optimization.
   const arma::mat& GetInitialPoint() const { return initialPoint; }
@@ -84,8 +118,8 @@ class RegularizedSVDFunction
   size_t Rank() const { return rank; }
 
  private:
-  //! Rating data.
-  const arma::mat& data;
+  //! Rating data.  This will be an alias until Shuffle() is called.
+  MatType data;
   //! Initial parameter point.
   arma::mat initialPoint;
   //! Rank used for matrix factorization.
@@ -105,17 +139,26 @@ namespace mlpack {
 namespace optimization {
 
   /**
-   * Template specialization for SGD optimizer. Used because the gradient
-   * affects only a small number of parameters per example, and thus the normal
-   * abstraction does not work as fast as we might like it to.
+   * Template specialization for the SGD and parallel SGD optimizer. Used
+   * because the gradient affects only a small number of parameters per example,
+   * and thus the normal abstraction does not work as fast as we might like it
+   * to.
    */
-  template<>
-  template<>
-  double StandardSGD::Optimize(
-      mlpack::svd::RegularizedSVDFunction& function,
+  template <>
+  template <>
+  inline double StandardSGD::Optimize(
+      mlpack::svd::RegularizedSVDFunction<arma::mat>& function,
+      arma::mat& parameters);
+
+  template <>
+  template <>
+  inline double ParallelSGD<ExponentialBackoff>::Optimize(
+      mlpack::svd::RegularizedSVDFunction<arma::mat>& function,
       arma::mat& parameters);
 
 } // namespace optimization
 } // namespace mlpack
+
+#include "regularized_svd_function_impl.hpp"
 
 #endif

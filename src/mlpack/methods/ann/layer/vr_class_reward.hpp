@@ -49,8 +49,8 @@ class VRClassReward
    * @param target The target vector, that contains the class index in the range
    *        between 1 and the number of classes.
    */
-  template<typename eT>
-  double Forward(const arma::Mat<eT>&& input, const arma::Mat<eT>&& target);
+  template<typename InputType, typename TargetType>
+  double Forward(const InputType&& input, const TargetType&& target);
 
   /**
    * Ordinary feed backward pass of a neural network. The negative log
@@ -63,10 +63,10 @@ class VRClassReward
    *        between 1 and the number of classes.
    * @param output The calculated error.
    */
-  template<typename eT>
-  void Backward(const arma::Mat<eT>&& input,
-                const arma::Mat<eT>&& target,
-                arma::Mat<eT>&& output);
+  template<typename InputType, typename TargetType, typename OutputType>
+  void Backward(const InputType&& input,
+                const TargetType&& target,
+                OutputType&& output);
 
   //! Get the input parameter.
   InputDataType& InputParameter() const {return inputParameter; }
@@ -101,13 +101,13 @@ class VRClassReward
    *
    * @param layer The Layer to be added to the model.
    */
-  void Add(LayerTypes layer) { network.push_back(layer); }
+  void Add(LayerTypes<> layer) { network.push_back(layer); }
 
   /**
    * Serialize the layer
    */
   template<typename Archive>
-  void Serialize(Archive& /* ar */, const unsigned int /* version */);
+  void serialize(Archive& /* ar */, const unsigned int /* version */);
 
  private:
   //! Locally-stored value to scale the reward.
@@ -132,7 +132,7 @@ class VRClassReward
   bool deterministic;
 
   //! Locally-stored network modules.
-  std::vector<LayerTypes> network;
+  std::vector<LayerTypes<> > network;
 }; // class VRClassReward
 
 } // namespace ann

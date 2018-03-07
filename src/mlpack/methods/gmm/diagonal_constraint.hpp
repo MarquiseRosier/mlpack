@@ -27,13 +27,12 @@ class DiagonalConstraint
   static void ApplyConstraint(arma::mat& covariance)
   {
     // Save the diagonal only.
-    arma::vec diagonal = covariance.diag();
-    covariance = arma::diagmat(diagonal);
+    covariance = arma::diagmat(arma::clamp(covariance.diag(), 1e-10, DBL_MAX));
   }
 
   //! Serialize the constraint (which holds nothing, so, nothing to do).
   template<typename Archive>
-  static void Serialize(Archive& /* ar */, const unsigned int /* version */) { }
+  static void serialize(Archive& /* ar */, const unsigned int /* version */) { }
 };
 
 } // namespace gmm

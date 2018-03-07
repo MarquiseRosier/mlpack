@@ -95,7 +95,7 @@ void DrusillaSelect<MatType>::Train(
   for (size_t i = 0; i < l; ++i)
   {
     // Pick best index.
-    arma::uword maxIndex;
+    arma::uword maxIndex = 0;
     norms.max(maxIndex);
 
     arma::vec line(refCopy.col(maxIndex) / arma::norm(refCopy.col(maxIndex)));
@@ -201,15 +201,13 @@ void DrusillaSelect<MatType>::Search(const MatType& querySet,
 //! Serialize the model.
 template<typename MatType>
 template<typename Archive>
-void DrusillaSelect<MatType>::Serialize(Archive& ar,
+void DrusillaSelect<MatType>::serialize(Archive& ar,
                                         const unsigned int /* version */)
 {
-  using data::CreateNVP;
-
-  ar & CreateNVP(candidateSet, "candidateSet");
-  ar & CreateNVP(candidateIndices, "candidateIndices");
-  ar & CreateNVP(l, "l");
-  ar & CreateNVP(m, "m");
+  ar & BOOST_SERIALIZATION_NVP(candidateSet);
+  ar & BOOST_SERIALIZATION_NVP(candidateIndices);
+  ar & BOOST_SERIALIZATION_NVP(l);
+  ar & BOOST_SERIALIZATION_NVP(m);
 }
 
 } // namespace neighbor

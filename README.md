@@ -5,7 +5,7 @@
 
 <h5 align="center">
   <a href="http://mlpack.org">Home</a> |
-  <a href="http://www.mlpack.org/docs/mlpack-git/doxygen.php">Documentation</a> |
+  <a href="http://www.mlpack.org/docs/mlpack-git/doxygen/index.html">Documentation</a> |
   <a href="http://www.mlpack.org/involved.html">Community</a> |
   <a href="http://www.mlpack.org/help.html">Help</a> |
   <a href="http://webchat.freenode.net/?channels=mlpack">IRC Chat</a>
@@ -21,14 +21,15 @@
 <p align="center">
   <em>
     Download:
-    <a href="http://www.mlpack.org/files/mlpack-2.2.3.tar.gz">current stable version (2.2.3)</a>
+    <a href="http://www.mlpack.org/files/mlpack-2.2.5.tar.gz">current stable version (2.2.5)</a>
   </em>
 </p>
 
 **mlpack** is an intuitive, fast, scalable C++ machine learning library, meant to be
 a machine learning analog to LAPACK. It aims to implement a wide array of
 machine learning methods and functions as a "swiss army knife" for machine
-learning researchers.
+learning researchers.  In addition to its powerful C++ interface, mlpack also
+provides command-line programs and Python bindings.
 
 ### 0. Contents
 
@@ -37,8 +38,9 @@ learning researchers.
   3. [Dependencies](#3-dependencies)
   4. [Building mlpack from source](#4-building-mlpack-from-source)
   5. [Running mlpack programs](#5-running-mlpack-programs)
-  6. [Further documentation](#6-further-documentation)
-  7. [Bug reporting](#7-bug-reporting)
+  6. [Using mlpack from Python](#6-using-mlpack-from-python)
+  7. [Further documentation](#7-further-documentation)
+  8. [Bug reporting](#8-bug-reporting)
 
 ###  1. Introduction
 
@@ -48,9 +50,9 @@ mlpack is, how to install it, how to run it, and where to find more
 documentation. The website should be consulted for further information:
 
   - [mlpack homepage](http://www.mlpack.org/)
-  - [Tutorials](http://www.mlpack.org/docs/mlpack-git/doxygen.php?doc=tutorials.html)
+  - [Tutorials](http://www.mlpack.org/docs/mlpack-git/doxygen/tutorials.html)
   - [Development Site (Github)](http://www.github.com/mlpack/mlpack/)
-  - [API documentation](http://www.mlpack.org/docs/mlpack-git/doxygen.php)
+  - [API documentation](http://www.mlpack.org/docs/mlpack-git/doxygen/index.html)
 
 ### 2. Citation details
 
@@ -83,6 +85,14 @@ All of those should be available in your distribution's package manager.  If
 not, you will have to compile each of them by hand.  See the documentation for
 each of those packages for more information.
 
+If you would like use or build the mlpack Python bindings, make sure that the
+following Python packages are installed:
+
+      setuptools
+      cython >= 0.24
+      numpy
+      pandas >= 0.15.0
+
 If you are compiling Armadillo by hand, ensure that LAPACK and BLAS are enabled.
 
 ### 4. Building mlpack from source
@@ -96,7 +106,7 @@ with the following command:
 
 There are some other useful pages to consult in addition to this section:
 
-  - [Building mlpack From Source](http://www.mlpack.org/docs/mlpack-git/doxygen.php?doc=build.html)
+  - [Building mlpack From Source](http://www.mlpack.org/docs/mlpack-git/doxygen/build.html)
   - [Building mlpack Under Windows](https://github.com/mlpack/mlpack/wiki/WindowsBuild)
 
 mlpack uses CMake as a build system and allows several flexible build
@@ -136,9 +146,15 @@ Options are specified with the -D flag.  A list of options allowed:
     BOOST_ROOT=(/path/to/boost/): path to root of boost installation
     ARMADILLO_INCLUDE_DIR=(/path/to/armadillo/include/): path to Armadillo headers
     ARMADILLO_LIBRARY=(/path/to/armadillo/libarmadillo.so): Armadillo library
+    BUILD_CLI_EXECUTABLES=(ON/OFF): whether or not to build command-line programs
+    BUILD_PYTHON_BINDINGS=(ON/OFF): whether or not to build Python bindings
 
 Other tools can also be used to configure CMake, but those are not documented
 here.
+
+By default, command-line programs will be built, and if the Python dependencies
+(Cython, setuptools, numpy, pandas) are available, then Python bindings will
+also be built.
 
 Once CMake is configured, building the library is as simple as typing 'make'.
 This will build all library components as well as 'mlpack_test'.
@@ -166,7 +182,9 @@ write permissions to those three directories), and simply type
 You can now run the executables by name; you can link against mlpack with
     `-lmlpack`
 and the mlpack headers are found in
-    `/usr/local/include/mlpack/`.
+    `/usr/local/include/mlpack/`
+and if Python bindings were built, they will be accessible with the `mlpack`
+package in Python.
 
 If running the programs (i.e. `$ mlpack_knn -h`) gives an error of the form
 
@@ -202,19 +220,52 @@ nearest points to that point.
 Each mlpack program has extensive help documentation which details what the
 method does, what each of the parameters are, and how to use them:
 
-    $ mlpack_knn --help
+```shell
+$ mlpack_knn --help
+```
 
 Running `mlpack_knn` on one dataset (that is, the query and reference
 datasets are the same) and finding the 5 nearest neighbors is very simple:
 
-    $ mlpack_knn -r dataset.csv -n neighbors_out.csv -d distances_out.csv -k 5 -v
+```shell
+$ mlpack_knn -r dataset.csv -n neighbors_out.csv -d distances_out.csv -k 5 -v
+```
 
 The `-v (--verbose)` flag is optional; it gives informational output.  It is not
 unique to `mlpack_knn` but is available in all mlpack programs.  Verbose
 output also gives timing output at the end of the program, which can be very
 useful.
 
-### 6. Further documentation
+### 6. Using mlpack from Python
+
+If mlpack is installed to the system, then the mlpack Python bindings should be
+automatically in your PYTHONPATH, and importing mlpack functionality into Python
+should be very simple:
+
+```python
+>>> from mlpack import knn
+```
+
+Accessing help is easy:
+
+```python
+>>> help(knn)
+```
+
+The API is similar to the command-line programs.  So, running `knn()`
+(k-nearest-neighbor search) on the numpy matrix `dataset` and finding the 5
+nearest neighbors is very simple:
+
+```python
+>>> output = knn(reference=dataset, k=5, verbose=True)
+```
+
+This will store the output neighbors in `output['neighbors']` and the output
+distances in `output['distances']`.  Other mlpack bindings function similarly,
+and the input/output parameters exactly match those of the command-line
+programs.
+
+### 7. Further documentation
 
 The documentation given here is only a fraction of the available documentation
 for mlpack.  If doxygen is installed, you can type `make doc` to build the
@@ -222,11 +273,11 @@ documentation locally.  Alternately, up-to-date documentation is available for
 older versions of mlpack:
 
   - [mlpack homepage](http://www.mlpack.org/)
-  - [Tutorials](http://www.mlpack.org/docs/mlpack-git/doxygen.php?doc=tutorials.html)
+  - [Tutorials](http://www.mlpack.org/docs/mlpack-git/doxygen/tutorials.html)
   - [Development Site (Github)](https://www.github.com/mlpack/mlpack/)
-  - [API documentation](http://www.mlpack.org/docs/mlpack-git/doxygen.php)
+  - [API documentation](http://www.mlpack.org/docs/mlpack-git/doxygen/index.html)
 
-### 7. Bug reporting
+### 8. Bug reporting
 
    (see also [mlpack help](http://www.mlpack.org/help.html))
 
@@ -247,4 +298,4 @@ and the git commit list is available at
 
   [commit list](http://lists.mlpack.org/mailman/listinfo/mlpack-git)
 
-Lastly, the IRC channel ```#mlpack``` on Freenode can be used to get help.
+Lastly, the IRC channel `#mlpack` on Freenode can be used to get help.

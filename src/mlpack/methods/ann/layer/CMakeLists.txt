@@ -6,6 +6,8 @@ set(SOURCES
   add_merge.hpp
   add_merge_impl.hpp
   base_layer.hpp
+  bilinear_interpolation.hpp
+  bilinear_interpolation_impl.hpp
   concat.hpp
   concat_impl.hpp
   concat_performance.hpp
@@ -14,14 +16,20 @@ set(SOURCES
   constant_impl.hpp
   convolution.hpp
   convolution_impl.hpp
+  cross_entropy_error.hpp
+  cross_entropy_error_impl.hpp
   dropconnect.hpp
   dropconnect_impl.hpp
   dropout.hpp
   dropout_impl.hpp
   elu.hpp
   elu_impl.hpp
+  fast_lstm.hpp
+  fast_lstm_impl.hpp
   glimpse.hpp
   glimpse_impl.hpp
+  gru.hpp
+  gru_impl.hpp
   hard_tanh.hpp
   hard_tanh_impl.hpp
   join.hpp
@@ -59,11 +67,13 @@ set(SOURCES
   recurrent_attention_impl.hpp
   reinforce_normal.hpp
   reinforce_normal_impl.hpp
+  sigmoid_cross_entropy_error.hpp
+  sigmoid_cross_entropy_error_impl.hpp
   select.hpp
   select_impl.hpp
   sequential.hpp
   sequential_impl.hpp
-  vr_class_reward_impl.hpp
+  vr_class_reward.hpp
   vr_class_reward_impl.hpp
 )
 

@@ -14,7 +14,7 @@
 #include <mlpack/core.hpp>
 
 #include <mlpack/core/optimizers/ada_delta/ada_delta.hpp>
-#include <mlpack/core/optimizers/sgd/test_function.hpp>
+#include <mlpack/core/optimizers/problems/sgd_test_function.hpp>
 #include <mlpack/methods/logistic_regression/logistic_regression.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_SUITE(AdaDeltaTest);
 BOOST_AUTO_TEST_CASE(SimpleAdaDeltaTestFunction)
 {
   SGDTestFunction f;
-  AdaDelta optimizer(1.0, 0.99, 1e-8, 5000000, 1e-9, true);
+  AdaDelta optimizer(1.0, 1, 0.99, 1e-8, 5000000, 1e-9, true);
 
   arma::mat coordinates = f.GetInitialPoint();
   optimizer.Optimize(f, coordinates);

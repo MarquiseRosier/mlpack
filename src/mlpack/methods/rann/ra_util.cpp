@@ -30,11 +30,6 @@ size_t mlpack::neighbor::RAUtil::MinimumSamplesReqd(const size_t n,
   double prob;
   Log::Assert(alpha <= 1.0);
 
-  // going through all values of sample sizes
-  // to find the minimum samples required to satisfy the
-  // desired bound
-  bool done = false;
-
   // This performs a binary search on the integer values between 'lb = k'
   // and 'ub = n' to find the minimum number of samples 'm' required to obtain
   // the desired success probability 'alpha'.
@@ -44,8 +39,8 @@ size_t mlpack::neighbor::RAUtil::MinimumSamplesReqd(const size_t n,
 
     if (prob > alpha)
     {
-      if (prob - alpha < 0.001 || ub < lb + 2) {
-        done = true;
+      if (prob - alpha < 0.001 || ub < lb + 2)
+      {
         break;
       }
       else
@@ -65,12 +60,11 @@ size_t mlpack::neighbor::RAUtil::MinimumSamplesReqd(const size_t n,
       }
       else
       {
-        done = true;
         break;
       }
     }
     m = (ub + lb) / 2;
-  } while (!done);
+  } while (true);
 
   return (std::min(m + 1, n));
 }

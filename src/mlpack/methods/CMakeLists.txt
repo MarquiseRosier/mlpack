@@ -8,19 +8,24 @@ if (BUILD_CLI_EXECUTABLES)
   )
   target_link_libraries(mlpack_${name}
     mlpack
+    ${Boost_LIBRARIES}
     ${COMPILER_SUPPORT_LIBRARIES}
   )
+  # Make sure that we set BINDING_TYPE to cli so the command-line program is
+  # compiled with the correct int main() call.
+  set_target_properties(mlpack_${name} PROPERTIES COMPILE_FLAGS
+      -DBINDING_TYPE=BINDING_TYPE_CLI)
   install(TARGETS mlpack_${name} RUNTIME DESTINATION bin)
 endif ()
 endmacro ()
 
 # Recurse into each method mlpack provides.
 set(DIRS
-  preprocess
+  # mvu # Note: this implementation of MVU does not work.  See #189.
   adaboost
-  approx_kfn
   amf
   ann
+  approx_kfn
   block_krylov_svd
   cf
   dbscan
@@ -34,31 +39,33 @@ set(DIRS
   hoeffding_trees
   kernel_pca
   kmeans
-  mean_shift
   lars
   linear_regression
   local_coordinate_coding
   logistic_regression
   lsh
-#  mvu
   matrix_completion
+  mean_shift
   naive_bayes
   nca
   neighbor_search
   nmf
-#  lmf
+  nystroem_method
   pca
   perceptron
+  preprocess
   quic_svd
   radical
+  random_forest
   randomized_svd
   range_search
   rann
   regularized_svd
+  reinforcement_learning
   softmax_regression
   sparse_autoencoder
   sparse_coding
-  nystroem_method
+  sparse_svm
 )
 
 foreach(dir ${DIRS})
@@ -66,3 +73,4 @@ foreach(dir ${DIRS})
 endforeach()
 
 set(MLPACK_SRCS ${MLPACK_SRCS} ${DIR_SRCS} PARENT_SCOPE)
+set(MLPACK_PYXS ${MLPACK_PYXS} PARENT_SCOPE)

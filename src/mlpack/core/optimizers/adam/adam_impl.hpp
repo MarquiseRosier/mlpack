@@ -5,7 +5,7 @@
  * @author Marcus Edel
  * @author Vivek Pal
  *
- * Implementation of the Adam and AdaMax optimizer.
+ * Implementation of the Adam, AdaMax, AMSGrad, Nadam and NadaMax optimizer.
  *
  * mlpack is free software; you may redistribute it and/or modify it under the
  * terms of the 3-clause BSD license.  You should have received a copy of the
@@ -24,6 +24,7 @@ namespace optimization {
 template<typename UpdateRule>
 AdamType<UpdateRule>::AdamType(
     const double stepSize,
+    const size_t batchSize,
     const double beta1,
     const double beta2,
     const double epsilon,
@@ -31,12 +32,11 @@ AdamType<UpdateRule>::AdamType(
     const double tolerance,
     const bool shuffle) :
     optimizer(stepSize,
+              batchSize,
               maxIterations,
               tolerance,
               shuffle,
-              UpdateRule(epsilon,
-                         beta1,
-                         beta2))
+              UpdateRule(epsilon, beta1, beta2))
 { /* Nothing to do. */ }
 
 } // namespace optimization

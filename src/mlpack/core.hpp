@@ -100,6 +100,8 @@
  *  - @ref iodoc
  *  - @ref timer
  *  - @ref sample
+ *  - @ref cv
+ *  - @ref hpt
  *  - @ref verinfo
  *
  * Tutorials on specific methods are also available.
@@ -223,6 +225,19 @@
  *   - Franciszek Stokowacki <franek.stokowacki@gmail.com>
  *   - Samikshya Chand <samikshya289@gmail.com>
  *   - N Rajiv Vaidyanathan <rajivvaidyanathan4@gmail.com>
+ *   - Kartik Nighania <kartiknighania@gmail.com>
+ *   - Eugene Freyman <evg.freyman@gmail.com>
+ *   - Manish Kumar <manish887kr@gmail.com>
+ *   - Haritha Sreedharan Nair <haritha1313@gmail.com>
+ *   - Sourabh Varshney <sourabhvarshney111@gmail.com>
+ *   - Projyal Dev <projyal@gmail.com>
+ *   - Nikhil Goel <nikhilgoel199797@gmail.com>
+ *   - Shikhar Jaiswal <jaiswalshikhar87@gmail.com>
+ *   - B Kartheek Reddy <bkartheekreddy@gmail.com>
+ *   - Atharva Khandait <akhandait45@gmail.com>
+ *   - Wenhao Huang <wenhao.huang.work@gmail.com>
+ *   - Roberto Hueso <robertohueso96@gmail.com>
+ *   - Prabhat Sharma <prabhatsharma7298@gmail.com>
  */
 
 // First, include all of the prerequisites.
@@ -242,6 +257,8 @@
 #include <mlpack/core/math/lin_alg.hpp>
 #include <mlpack/core/math/range.hpp>
 #include <mlpack/core/math/round.hpp>
+#include <mlpack/core/math/shuffle_data.hpp>
+#include <mlpack/core/math/make_alias.hpp>
 #include <mlpack/core/dists/discrete_distribution.hpp>
 #include <mlpack/core/dists/gaussian_distribution.hpp>
 #include <mlpack/core/dists/laplace_distribution.hpp>

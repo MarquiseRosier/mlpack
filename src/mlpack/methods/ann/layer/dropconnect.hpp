@@ -113,7 +113,7 @@ class DropConnect
                 arma::Mat<eT>&& /* gradient */);
 
   //! Get the model modules.
-  std::vector<LayerTypes>& Model() { return network; }
+  std::vector<LayerTypes<> >& Model() { return network; }
 
   //! Get the parameters.
   OutputDataType const& Parameters() const { return parameters; }
@@ -160,7 +160,7 @@ class DropConnect
    * Serialize the layer.
    */
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */);
+  void serialize(Archive& ar, const unsigned int /* version */);
 
  private:
   //! The probability of setting a value to zero.
@@ -194,10 +194,10 @@ class DropConnect
   OutputDataType denoise;
 
   //! Locally-stored layer module.
-  LayerTypes baseLayer;
+  LayerTypes<> baseLayer;
 
   //! Locally-stored network modules.
-  std::vector<LayerTypes> network;
+  std::vector<LayerTypes<> > network;
 }; // class DropConnect.
 
 }  // namespace ann

@@ -12,13 +12,26 @@
 #include <mlpack/prereqs.hpp>
 #include <mlpack/core/util/cli.hpp>
 #include <mlpack/core/math/random.hpp>
+#include <mlpack/core/util/mlpack_main.hpp>
 #include "radical.hpp"
 
 PROGRAM_INFO("RADICAL", "An implementation of RADICAL, a method for independent"
     "component analysis (ICA).  Assuming that we have an input matrix X, the"
     "goal is to find a square unmixing matrix W such that Y = W * X and the "
     "dimensions of Y are independent components.  If the algorithm is running"
-    "particularly slowly, try reducing the number of replicates.");
+    "particularly slowly, try reducing the number of replicates."
+    "\n\n"
+    "The input matrix to perform ICA on should be specified with the " +
+    PRINT_PARAM_STRING("input") + " parameter.  The output matrix Y may be "
+    "saved with the " + PRINT_PARAM_STRING("output_ic") + " output parameter, "
+    "and the output unmixing matrix W may be saved with the " +
+    PRINT_PARAM_STRING("output_unmixing") + " output parameter."
+    "\n\n"
+    "For example, to perform ICA on the matrix " + PRINT_DATASET("X") + " with "
+    "40 replicates, saving the independent components to " +
+    PRINT_DATASET("ic") + ", the following command may be used: "
+    "\n\n" +
+    PRINT_CALL("radical", "input", "X", "replicates", 40, "output_ic", "ic"));
 
 PARAM_MATRIX_IN_REQ("input", "Input dataset for ICA.", "i");
 
@@ -40,23 +53,31 @@ PARAM_FLAG("objective", "If set, an estimate of the final objective function "
 using namespace mlpack;
 using namespace mlpack::radical;
 using namespace mlpack::math;
+using namespace mlpack::util;
 using namespace std;
 using namespace arma;
 
-int main(int argc, char* argv[])
+static void mlpackMain()
 {
-  // Handle parameters.
-  CLI::ParseCommandLine(argc, argv);
-
   // Set random seed.
   if (CLI::GetParam<int>("seed") != 0)
     RandomSeed((size_t) CLI::GetParam<int>("seed"));
   else
     RandomSeed((size_t) std::time(NULL));
 
-  if (!CLI::HasParam("output_ic") && !CLI::HasParam("output_unmixing"))
-    Log::Warn << "Neither --output_ic_file nor --output_unmixing_file were "
-        << "specified; no output will be saved!" << endl;
+  RequireAtLeastOnePassed({ "output_ic", "output_unmixing" }, false, "no output"
+      " will be saved");
+
+  // Check validity of parameters.
+  RequireParamValue<int>("replicates", [](int x) { return x > 0; }, true,
+      "number of replicates must be positive");
+  RequireParamValue<double>("noise_std_dev", [](double x) { return x >= 0.0; },
+      true, "standard deviation of Gaussian noise must be greater than or equal"
+      " to 0");
+  RequireParamValue<int>("angles", [](int x) { return x > 0; }, true,
+      "number of angles must be positive");
+  RequireParamValue<int>("sweeps", [](int x) { return x >= 0; }, true,
+      "number of sweeps must be 0 or greater");
 
   // Load the data.
   mat matX = std::move(CLI::GetParam<mat>("input"));

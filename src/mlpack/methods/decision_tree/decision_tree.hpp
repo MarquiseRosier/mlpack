@@ -312,7 +312,7 @@ class DecisionTree :
    * Serialize the tree.
    */
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */);
+  void serialize(Archive& ar, const unsigned int /* version */);
 
   //! Get the number of children.
   size_t NumChildren() const { return children.size(); }
@@ -331,6 +331,11 @@ class DecisionTree :
    */
   template<typename VecType>
   size_t CalculateDirection(const VecType& point) const;
+
+  /**
+   * Get the number of classes in the tree.
+   */
+  size_t NumClasses() const;
 
  private:
   //! The vector of children.

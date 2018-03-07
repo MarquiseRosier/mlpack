@@ -166,6 +166,7 @@ DecisionTree<FitnessFunction,
              DimensionSelectionType,
              ElemType,
              NoRecursion>::DecisionTree(const size_t numClasses) :
+    splitDimension(0),
     dimensionTypeOrMajorityClass(0),
     classProbabilities(numClasses)
 {
@@ -241,6 +242,9 @@ DecisionTree<FitnessFunction,
              ElemType,
              NoRecursion>::operator=(const DecisionTree& other)
 {
+  if (this == &other)
+    return *this; // Nothing to copy.
+
   // Clean memory if needed.
   for (size_t i = 0; i < children.size(); ++i)
     delete children[i];
@@ -282,6 +286,9 @@ DecisionTree<FitnessFunction,
              ElemType,
              NoRecursion>::operator=(DecisionTree&& other)
 {
+  if (this == &other)
+    return *this; // Nothing to move.
+
   // Clean memory if needed.
   for (size_t i = 0; i < children.size(); ++i)
     delete children[i];
@@ -360,7 +367,7 @@ void DecisionTree<FitnessFunction,
   // Pass off work to the Train() method.
   arma::rowvec weights; // Fake weights, not used.
   Train<false>(tmpData, 0, tmpData.n_cols, datasetInfo, tmpLabels, numClasses,
-      minimumLeafSize);
+      weights, minimumLeafSize);
 }
 
 //! Train on the given data, assuming all dimensions are numeric.
@@ -571,7 +578,7 @@ void DecisionTree<FitnessFunction,
     }
 
     // If the gain is the best possible, no need to keep looking.
-    if (bestGain == 0.0)
+    if (bestGain >= 0.0)
       break;
   }
 
@@ -719,7 +726,7 @@ void DecisionTree<FitnessFunction,
     }
 
     // If the gain is the best possible, no need to keep looking.
-    if (bestGain == 0.0)
+    if (bestGain >= 0.0)
       break;
   }
 
@@ -925,11 +932,9 @@ void DecisionTree<FitnessFunction,
                   CategoricalSplitType,
                   DimensionSelectionType,
                   ElemType,
-                  NoRecursion>::Serialize(Archive& ar,
+                  NoRecursion>::serialize(Archive& ar,
                                           const unsigned int /* version */)
 {
-  using data::CreateNVP;
-
   // Clean memory if needed.
   if (Archive::is_loading::value)
   {
@@ -939,26 +944,12 @@ void DecisionTree<FitnessFunction,
   }
 
   // Serialize the children first.
-  size_t numChildren = children.size();
-  ar & CreateNVP(numChildren, "numChildren");
-  if (Archive::is_loading::value)
-  {
-    children.resize(numChildren, NULL);
-    for (size_t i = 0; i < numChildren; ++i)
-      children[i] = new DecisionTree();
-  }
-
-  for (size_t i = 0; i < numChildren; ++i)
-  {
-    std::ostringstream name;
-    name << "child" << i;
-    ar & CreateNVP(*children[i], name.str());
-  }
+  ar & BOOST_SERIALIZATION_NVP(children);
 
   // Now serialize the rest of the object.
-  ar & CreateNVP(splitDimension, "splitDimension");
-  ar & CreateNVP(dimensionTypeOrMajorityClass, "dimensionTypeOrMajorityClass");
-  ar & CreateNVP(classProbabilities, "classProbabilities");
+  ar & BOOST_SERIALIZATION_NVP(splitDimension);
+  ar & BOOST_SERIALIZATION_NVP(dimensionTypeOrMajorityClass);
+  ar & BOOST_SERIALIZATION_NVP(classProbabilities);
 }
 
 template<typename FitnessFunction,
@@ -982,6 +973,28 @@ size_t DecisionTree<FitnessFunction,
   else
     return NumericSplit::CalculateDirection(point[splitDimension],
         classProbabilities, *this);
+}
+
+// Get the number of classes in the tree.
+template<typename FitnessFunction,
+         template<typename> class NumericSplitType,
+         template<typename> class CategoricalSplitType,
+         typename DimensionSelectionType,
+         typename ElemType,
+         bool NoRecursion>
+size_t DecisionTree<FitnessFunction,
+                    NumericSplitType,
+                    CategoricalSplitType,
+                    DimensionSelectionType,
+                    ElemType,
+                    NoRecursion>::NumClasses() const
+{
+  // Recurse to the nearest child and return the number of elements in the
+  // probability vector.
+  if (children.size() == 0)
+    return classProbabilities.n_elem;
+  else
+    return children[0]->NumClasses();
 }
 
 template<typename FitnessFunction,
@@ -1018,7 +1031,7 @@ void DecisionTree<FitnessFunction,
 
   // Now normalize into probabilities.
   classProbabilities /= UseWeights ? sumWeights : labels.n_elem;
-  arma::uword maxIndex;
+  arma::uword maxIndex = 0;
   classProbabilities.max(maxIndex);
   dimensionTypeOrMajorityClass = (size_t) maxIndex;
 }

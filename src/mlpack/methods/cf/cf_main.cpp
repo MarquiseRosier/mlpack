@@ -9,10 +9,10 @@
  * 3-clause BSD license along with mlpack.  If not, see
  * http://www.opensource.org/licenses/BSD-3-Clause for more information.
  */
-
 #include <mlpack/prereqs.hpp>
 #include <mlpack/core/util/cli.hpp>
 #include <mlpack/core/math/random.hpp>
+#include <mlpack/core/util/mlpack_main.hpp>
 #include <mlpack/methods/amf/amf.hpp>
 #include <mlpack/methods/regularized_svd/regularized_svd.hpp>
 #include <mlpack/methods/amf/termination_policies/max_iteration_termination.hpp>
@@ -22,34 +22,39 @@ using namespace mlpack;
 using namespace mlpack::cf;
 using namespace mlpack::amf;
 using namespace mlpack::svd;
+using namespace mlpack::util;
 using namespace std;
 
 // Document program.
-PROGRAM_INFO("Collaborating Filtering", "This program performs collaborative "
+PROGRAM_INFO("Collaborative Filtering", "This program performs collaborative "
     "filtering (CF) on the given dataset. Given a list of user, item and "
-    "preferences (--training_file) the program will perform a matrix "
-    "decomposition and then can perform a series of actions related to "
-    "collaborative filtering.  Alternately, the program can load an existing "
-    "saved CF model with the --input_model_file (-m) option and then use that "
-    "model to provide recommendations or predict values."
+    "preferences (the " + PRINT_PARAM_STRING("training") + " parameter), "
+    "the program will perform a matrix decomposition and then can perform a "
+    "series of actions related to collaborative filtering.  Alternately, the "
+    "program can load an existing saved CF model with the " +
+    PRINT_PARAM_STRING("input_model") + " parameter and then use that model "
+    "to provide recommendations or predict values."
     "\n\n"
-    "The input file should contain a 3-column matrix of ratings, where the "
-    "first column is the user, the second column is the item, and the third "
-    "column is that user's rating of that item.  Both the users and items "
-    "should be numeric indices, not names. The indices are assumed to start "
-    "from 0."
+    "The input matrix should be a 3-dimensional matrix of ratings, where the "
+    "first dimension is the user, the second dimension is the item, and the "
+    "third dimension is that user's rating of that item.  Both the users and "
+    "items should be numeric indices, not names. The indices are assumed to "
+    "start from 0."
     "\n\n"
     "A set of query users for which recommendations can be generated may be "
-    "specified with the --query_file (-q) option; alternately, recommendations "
-    "may be generated for every user in the dataset by specifying the "
-    "--all_user_recommendations (-A) option.  In addition, the number of "
-    "recommendations per user to generate can be specified with the "
-    "--recommendations (-r) parameter, and the number of similar users (the "
-    "size of the neighborhood) to be considered when generating recommendations"
-    " can be specified with the --neighborhood (-n) option."
+    "specified with the " + PRINT_PARAM_STRING("query") + " parameter; "
+    "alternately, recommendations may be generated for every user in the "
+    "dataset by specifying the " +
+    PRINT_PARAM_STRING("all_user_recommendations") + " parameter.  In "
+    "addition, the number of recommendations per user to generate can be "
+    "specified with the " + PRINT_PARAM_STRING("recommendations") + " "
+    "parameter, and the number of similar users (the size of the neighborhood) "
+    " to be considered when generating recommendations can be specified with "
+    "the " + PRINT_PARAM_STRING("neighborhood") + " parameter."
     "\n\n"
     "For performing the matrix decomposition, the following optimization "
-    "algorithms can be specified via the --algorithm (-a) parameter: "
+    "algorithms can be specified via the " + PRINT_PARAM_STRING("algorithm") +
+    " parameter: "
     "\n"
     "'RegSVD' -- Regularized SVD using a SGD optimizer\n"
     "'NMF' -- Non-negative matrix factorization with alternating least squares "
@@ -58,8 +63,23 @@ PROGRAM_INFO("Collaborating Filtering", "This program performs collaborative "
     "'SVDIncompleteIncremental' -- SVD incomplete incremental learning\n"
     "'SVDCompleteIncremental' -- SVD complete incremental learning\n"
     "\n"
-    "A trained model may be saved to a file with the --output_model_file (-M) "
-    "parameter.");
+    "A trained model may be saved to with the " +
+    PRINT_PARAM_STRING("output_model") + " output parameter."
+    "\n\n"
+    "To train a CF model on a dataset " + PRINT_DATASET("training_set") + " "
+    "using NMF for decomposition and saving the trained model to " +
+    PRINT_MODEL("model") + ", one could call: "
+    "\n\n" +
+    PRINT_CALL("cf", "training", "training_set", "algorithm", "NMF",
+        "output_model", "model") +
+    "\n\n"
+    "Then, to use this model to generate recommendations for the list of users "
+    "in the query set " + PRINT_DATASET("users") + ", storing 5 "
+    "recommendations in " + PRINT_DATASET("recommendations") + ", one could "
+    "call "
+    "\n\n" +
+    PRINT_CALL("cf", "input_model", "model", "query", "users",
+        "recommendations", 5, "output", "recommendations"));
 
 // Parameters for training a model.
 PARAM_MATRIX_IN("training", "Input dataset to perform CF on.", "t");
@@ -95,7 +115,7 @@ PARAM_INT_IN("recommendations", "Number of recommendations to generate for each"
 
 PARAM_INT_IN("seed", "Set the random seed (0 uses std::time(NULL)).", "s", 0);
 
-void ComputeRecommendations(CF& cf,
+void ComputeRecommendations(CF* cf,
                             const size_t numRecs,
                             arma::Mat<size_t>& recommendations)
 {
@@ -112,16 +132,16 @@ void ComputeRecommendations(CF& cf,
 
     Log::Info << "Generating recommendations for " << users.n_elem << " users."
         << endl;
-    cf.GetRecommendations(numRecs, recommendations, users.row(0).t());
+    cf->GetRecommendations(numRecs, recommendations, users.row(0).t());
   }
   else
   {
     Log::Info << "Generating recommendations for all users." << endl;
-    cf.GetRecommendations(numRecs, recommendations);
+    cf->GetRecommendations(numRecs, recommendations);
   }
 }
 
-void ComputeRMSE(CF& cf)
+void ComputeRMSE(CF* cf)
 {
   // Now, compute each test point.
   arma::mat testData = std::move(CLI::GetParam<arma::mat>("test"));
@@ -136,7 +156,7 @@ void ComputeRMSE(CF& cf)
 
   // Now compute the RMSE.
   arma::vec predictions;
-  cf.Predict(combinations, predictions);
+  cf->Predict(combinations, predictions);
 
   // Compute the root of the sum of the squared errors, divide by the number of
   // points to get the RMSE.  It turns out this is just the L2-norm divided by
@@ -148,7 +168,7 @@ void ComputeRMSE(CF& cf)
   Log::Info << "RMSE is " << rmse << "." << endl;
 }
 
-void PerformAction(CF& c)
+void PerformAction(CF* c)
 {
   if (CLI::HasParam("query") || CLI::HasParam("all_user_recommendations"))
   {
@@ -160,15 +180,13 @@ void PerformAction(CF& c)
     ComputeRecommendations(c, numRecs, recommendations);
 
     // Save the output.
-    if (CLI::HasParam("output"))
-      CLI::GetParam<arma::Mat<size_t>>("output") = recommendations;
+    CLI::GetParam<arma::Mat<size_t>>("output") = recommendations;
   }
 
   if (CLI::HasParam("test"))
     ComputeRMSE(c);
 
-  if (CLI::HasParam("output_model"))
-    CLI::GetParam<CF>("output_model") = std::move(c);
+  CLI::GetParam<CF*>("output_model") = c;
 }
 
 template<typename Factorizer>
@@ -178,7 +196,7 @@ void PerformAction(Factorizer&& factorizer,
 {
   // Parameters for generating the CF object.
   const size_t neighborhood = (size_t) CLI::GetParam<int>("neighborhood");
-  CF c(dataset, factorizer, neighborhood, rank);
+  CF* c = new CF(dataset, factorizer, neighborhood, rank);
 
   PerformAction(c);
 }
@@ -219,8 +237,8 @@ void AssembleFactorizerType(const std::string& algorithm,
     }
     else if (algorithm == "RegSVD")
     {
-      Log::Fatal << "--iteration_only_termination not supported with 'RegSVD' "
-          << "algorithm!" << endl;
+      Log::Fatal << PRINT_PARAM_STRING("iteration_only_termination") << " not "
+          << "supported with 'RegSVD' algorithm!" << endl;
     }
   }
   else
@@ -230,51 +248,54 @@ void AssembleFactorizerType(const std::string& algorithm,
     const double minResidue = CLI::GetParam<double>("min_residue");
     SimpleResidueTermination srt(minResidue, maxIterations);
     if (algorithm == "NMF")
+    {
       PerformAction(NMFALSFactorizer(srt), dataset, rank);
+    }
     else if (algorithm == "BatchSVD")
-      PerformAction(SVDBatchFactorizer(srt), dataset, rank);
+    {
+      PerformAction(SVDBatchFactorizer<>(srt), dataset, rank);
+    }
     else if (algorithm == "SVDIncompleteIncremental")
-      PerformAction(SparseSVDIncompleteIncrementalFactorizer(srt), dataset,
-          rank);
+    {
+      PerformAction(SVDIncompleteIncrementalFactorizer<arma::sp_mat>(srt),
+          dataset, rank);
+    }
     else if (algorithm == "SVDCompleteIncremental")
-      PerformAction(SparseSVDCompleteIncrementalFactorizer(srt), dataset, rank);
+    {
+      PerformAction(SVDCompleteIncrementalFactorizer<arma::sp_mat>(srt),
+          dataset, rank);
+    }
     else if (algorithm == "RegSVD")
+    {
       PerformAction(RegularizedSVD<>(maxIterations), dataset, rank);
+    }
   }
 }
 
-int main(int argc, char** argv)
+static void mlpackMain()
 {
-  // Parse command line options.
-  CLI::ParseCommandLine(argc, argv);
-
   if (CLI::GetParam<int>("seed") == 0)
     math::RandomSeed(std::time(NULL));
   else
     math::RandomSeed(CLI::GetParam<int>("seed"));
 
   // Validate parameters.
-  if (CLI::HasParam("training") && CLI::HasParam("input_model"))
-    Log::Fatal << "Only one of --training_file (-t) or --input_model_file (-m) "
-        << "may be specified!" << endl;
-
-  if (!CLI::HasParam("training") && !CLI::HasParam("input_model"))
-    Log::Fatal << "Neither --training_file (-t) nor --input_model_file (-m) are"
-        << " specified!" << endl;
+  RequireOnlyOnePassed({ "training", "input_model" }, true);
 
   // Check that nothing stupid is happening.
-  if (CLI::HasParam("query") && CLI::HasParam("all_user_recommendations"))
-    Log::Fatal << "Both --query_file and --all_user_recommendations are given, "
-        << "but only one is allowed!" << endl;
+  if (CLI::HasParam("query") || CLI::HasParam("all_user_recommendations"))
+    RequireOnlyOnePassed({ "query", "all_user_recommendations" }, true);
 
-  if (!CLI::HasParam("output") && !CLI::HasParam("output_model"))
-    Log::Warn << "Neither --output_file nor --output_model_file are specified; "
-        << "no output will be saved." << endl;
+  RequireAtLeastOnePassed({ "output", "output_model" }, false,
+      "no output will be saved");
+  if (CLI::HasParam("query") || CLI::HasParam("all_user_recommendations"))
+    ReportIgnoredParam("output", "no recommendations requested");
 
-  if (CLI::HasParam("output") && !(CLI::HasParam("query") ||
-      CLI::HasParam("all_user_recommendations")))
-    Log::Warn << "--output_file is ignored because neither --query_file nor "
-        << "--all_user_recommendations are specified." << endl;
+  RequireParamInSet<string>("algorithm", { "NMF", "BatchSVD",
+      "SVDIncompleteIncremental", "SVDCompleteIncremental", "RegSVD" }, true,
+      "unknown algorithm");
+
+  ReportIgnoredParam({{ "iteration_only_termination", true }}, "min_residue");
 
   // Either load from a model, or train a model.
   if (CLI::HasParam("training"))
@@ -293,23 +314,6 @@ int main(int argc, char** argv)
 
     const string algo = CLI::GetParam<string>("algorithm");
 
-    // Issue an error if an invalid factorizer is used.
-    if (algo != "NMF" &&
-        algo != "BatchSVD" &&
-        algo != "SVDIncompleteIncremental" &&
-        algo != "SVDCompleteIncremental" &&
-        algo != "RegSVD")
-      Log::Fatal << "Invalid decomposition algorithm.  Choices are 'NMF', "
-          << "'BatchSVD', 'SVDIncompleteIncremental', 'SVDCompleteIncremental',"
-          << " and 'RegSVD'." << endl;
-
-    // Issue a warning if the user provided a minimum residue but it will be
-    // ignored.
-    if (CLI::HasParam("min_residue") &&
-        CLI::HasParam("iteration_only_termination"))
-      Log::Warn << "--min_residue ignored, because --iteration_only_termination"
-          << " is specified." << endl;
-
     // Perform the factorization and do whatever the user wanted.
     AssembleFactorizerType(algo, dataset,
         CLI::HasParam("iteration_only_termination"), rank);
@@ -317,10 +321,8 @@ int main(int argc, char** argv)
   else
   {
     // Load an input model.
-    CF c = std::move(CLI::GetParam<CF>("input_model"));
+    CF* c = std::move(CLI::GetParam<CF*>("input_model"));
 
     PerformAction(c);
   }
-
-  CLI::Destroy();
 }

@@ -70,13 +70,6 @@ class LinearRegression
                    const bool intercept = true);
 
   /**
-   * Copy constructor.
-   *
-   * @param linearRegression the other instance to copy parameters from.
-   */
-  LinearRegression(const LinearRegression& linearRegression);
-
-  /**
    * Empty constructor.  This gives a non-working model, so make sure Train() is
    * called (or make sure the model parameters are set) before calling
    * Predict()!
@@ -206,11 +199,11 @@ class LinearRegression
    * Serialize the model.
    */
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */)
+  void serialize(Archive& ar, const unsigned int /* version */)
   {
-    ar & data::CreateNVP(parameters, "parameters");
-    ar & data::CreateNVP(lambda, "lambda");
-    ar & data::CreateNVP(intercept, "intercept");
+    ar & BOOST_SERIALIZATION_NVP(parameters);
+    ar & BOOST_SERIALIZATION_NVP(lambda);
+    ar & BOOST_SERIALIZATION_NVP(intercept);
   }
 
  private:

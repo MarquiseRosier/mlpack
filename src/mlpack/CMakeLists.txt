@@ -1,7 +1,10 @@
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..) # mlpack/mlpack_export.hpp
 
 # Add core.hpp to list of sources.
-set(MLPACK_SRCS ${MLPACK_SRCS} "${CMAKE_CURRENT_SOURCE_DIR}/core.hpp")
+set(MLPACK_SRCS ${MLPACK_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/core.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/prereqs.hpp"
+)
 
 ## Recurse into both core/ and methods/.
 set(DIRS
@@ -13,10 +16,6 @@ set(DIRS
 foreach(dir ${DIRS})
     add_subdirectory(${dir})
 endforeach()
-
-if (BUILD_TESTS)
-  add_subdirectory(tests)
-endif ()
 
 # MLPACK_SRCS is set in the subdirectories.  The dependencies (MLPACK_LIBRARIES)
 # are set in the root CMakeLists.txt.
@@ -58,6 +57,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   endif()
 endif()
 
+set_target_properties(mlpack PROPERTIES COTIRE_CXX_PREFIX_HEADER_INIT "prereqs.hpp")
+cotire(mlpack)
+
+if (BUILD_TESTS)
+  add_subdirectory(tests)
+endif ()
+
 # Collect all header files in the library.
 file(GLOB_RECURSE INCLUDE_H_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.h)
 file(GLOB_RECURSE INCLUDE_HPP_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.hpp)
@@ -94,3 +100,25 @@ install(TARGETS mlpack
   ARCHIVE DESTINATION lib)
 
 add_dependencies(mlpack mlpack_headers)
+
+# If we are building Python bindings, we have to configure setup.py but only
+# after we've recursed into methods/.
+if (BUILD_PYTHON_BINDINGS)
+  # Extract the version number.
+  file(READ "${CMAKE_SOURCE_DIR}/src/mlpack/core/util/version.hpp"
+      VERSION_HPP_CONTENTS)
+  string(REGEX REPLACE ".*#define MLPACK_VERSION_MAJOR ([0-9]+).*" "\\1"
+      MLPACK_VERSION_MAJOR "${VERSION_HPP_CONTENTS}")
+  string(REGEX REPLACE ".*#define MLPACK_VERSION_MINOR ([0-9]+).*" "\\1"
+      MLPACK_VERSION_MINOR "${VERSION_HPP_CONTENTS}")
+  string(REGEX REPLACE ".*#define MLPACK_VERSION_PATCH [\"]?([0-9x]+)[\"]?.*"
+      "\\1" MLPACK_VERSION_PATCH "${VERSION_HPP_CONTENTS}")
+
+  set(PACKAGE_VERSION
+      "${MLPACK_VERSION_MAJOR}.${MLPACK_VERSION_MINOR}.${MLPACK_VERSION_PATCH}")
+
+  get_property(CYTHON_INCLUDE_DIRECTORIES DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      PROPERTY INCLUDE_DIRECTORIES)
+  configure_file(${CMAKE_SOURCE_DIR}/src/mlpack/bindings/python/setup.py.in
+                 ${CMAKE_BINARY_DIR}/src/mlpack/bindings/python/setup.py)
+endif ()

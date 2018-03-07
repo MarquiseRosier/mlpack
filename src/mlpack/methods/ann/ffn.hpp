@@ -38,10 +38,13 @@ namespace ann /** Artificial Neural Network. */ {
  *
  * @tparam OutputLayerType The output layer type used to evaluate the network.
  * @tparam InitializationRuleType Rule used to initialize the weight matrix.
+ * @tparam CustomLayers Any set of custom layers that could be a part of the
+ *         feed forward network.
  */
 template<
   typename OutputLayerType = NegativeLogLikelihood<>,
-  typename InitializationRuleType = RandomInitialization
+  typename InitializationRuleType = RandomInitialization,
+  typename... CustomLayers
 >
 class FFN
 {
@@ -155,13 +158,47 @@ class FFN
    * is usually called by the optimizer to train the model.
    *
    * @param parameters Matrix model parameters.
-   * @param i Index of point to use for objective function evaluation.
+   * @param deterministic Whether or not to train or test the model. Note some
+   *        layer act differently in training or testing mode.
+   */
+  double Evaluate(const arma::mat& parameters);
+
+   /**
+   * Evaluate the feedforward network with the given parameters, but using only
+   * one data point. This is useful for optimizers such as SGD, which require a
+   * separable objective function.
+   *
+   * @param parameters Matrix model parameters.
+   * @param begin Index of the starting point to use for objective function
+   *        evaluation.
+   * @param batchSize Number of points to be passed at a time to use for
+   *        objective function evaluation.
    * @param deterministic Whether or not to train or test the model. Note some
    *        layer act differently in training or testing mode.
    */
   double Evaluate(const arma::mat& parameters,
-                  const size_t i,
-                  const bool deterministic = true);
+                  const size_t begin,
+                  const size_t batchSize,
+                  const bool deterministic);
+
+   /**
+   * Evaluate the feedforward network with the given parameters, but using only
+   * one data point. This is useful for optimizers such as SGD, which require a
+   * separable objective function.  This just calls the overload of Evaluate()
+   * with deterministic = true.
+   *
+   * @param parameters Matrix model parameters.
+   * @param begin Index of the starting point to use for objective function
+   *        evaluation.
+   * @param batchSize Number of points to be passed at a time to use for
+   *        objective function evaluation.
+   */
+  double Evaluate(const arma::mat& parameters,
+                  const size_t begin,
+                  const size_t batchSize)
+  {
+    return Evaluate(parameters, begin, batchSize, true);
+  }
 
   /**
    * Evaluate the gradient of the feedforward network with the given parameters,
@@ -169,12 +206,22 @@ class FFN
    * optimizers such as SGD, which require a separable objective function.
    *
    * @param parameters Matrix of the model parameters to be optimized.
-   * @param i Index of points to use for objective function gradient evaluation.
+   * @param begin Index of the starting point to use for objective function
+   *        gradient evaluation.
    * @param gradient Matrix to output gradient into.
+   * @param batchSize Number of points to be processed as a batch for objective
+   *        function gradient evaluation.
    */
   void Gradient(const arma::mat& parameters,
-                const size_t i,
-                arma::mat& gradient);
+                const size_t begin,
+                arma::mat& gradient,
+                const size_t batchSize);
+
+  /**
+   * Shuffle the order of function visitation. This may be called by the
+   * optimizer.
+   */
+  void Shuffle();
 
   /*
    * Add a new module to the model.
@@ -189,7 +236,7 @@ class FFN
    *
    * @param layer The Layer to be added to the model.
    */
-  void Add(LayerTypes layer) { network.push_back(layer); }
+  void Add(LayerTypes<CustomLayers...> layer) { network.push_back(layer); }
 
   //! Return the number of separable functions (the number of predictor points).
   size_t NumFunctions() const { return numFunctions; }
@@ -206,7 +253,7 @@ class FFN
 
   //! Serialize the model.
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */);
+  void serialize(Archive& ar, const unsigned int /* version */);
 
   /**
    * Perform the forward pass of the data in real batch mode.
@@ -262,7 +309,7 @@ class FFN
    * Iterate through all layer modules and update the the gradient using the
    * layer defined optimizer.
    */
-  void Gradient();
+  void Gradient(arma::mat&& input);
 
   /**
    * Reset the module status by setting the current deterministic parameter
@@ -299,7 +346,7 @@ class FFN
   bool reset;
 
   //! Locally-stored model modules.
-  std::vector<LayerTypes> network;
+  std::vector<LayerTypes<CustomLayers...> > network;
 
   //! The matrix of data points (predictors).
   arma::mat predictors;
@@ -318,9 +365,6 @@ class FFN
 
   //! THe current input of the forward/backward pass.
   arma::mat currentInput;
-
-  //! THe current target of the forward/backward pass.
-  arma::mat currentTarget;
 
   //! Locally-stored delta visitor.
   DeltaVisitor deltaVisitor;
@@ -359,7 +403,7 @@ class FFN
   arma::mat gradient;
 
   //! Locally-stored copy visitor
-  CopyVisitor copyVisitor;
+  CopyVisitor<CustomLayers...> copyVisitor;
 }; // class FFN
 
 } // namespace ann

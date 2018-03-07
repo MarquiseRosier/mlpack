@@ -39,7 +39,7 @@ class Add
    *
    * @param outSize The number of output units.
    */
-  Add(const size_t outSize);
+  Add(const size_t outSize = 0);
 
   /**
    * Ordinary feed forward pass of a neural network, evaluating the function
@@ -65,7 +65,7 @@ class Add
                 const arma::Mat<eT>&& gy,
                 arma::Mat<eT>&& g);
 
-  /*
+  /**
    * Calculate the gradient using the output delta and the input activation.
    *
    * @param input The propagated input.
@@ -106,7 +106,7 @@ class Add
    * Serialize the layer
    */
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */);
+  void serialize(Archive& ar, const unsigned int /* version */);
 
  private:
   //! Locally-stored number of output units.

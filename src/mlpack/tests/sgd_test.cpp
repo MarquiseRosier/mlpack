@@ -11,8 +11,8 @@
  */
 #include <mlpack/core.hpp>
 #include <mlpack/core/optimizers/sgd/sgd.hpp>
-#include <mlpack/core/optimizers/lbfgs/test_functions.hpp>
-#include <mlpack/core/optimizers/sgd/test_function.hpp>
+#include <mlpack/core/optimizers/problems/generalized_rosenbrock_function.hpp>
+#include <mlpack/core/optimizers/problems/sgd_test_function.hpp>
 
 #include <boost/test/unit_test.hpp>
 #include "test_tools.hpp"
@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_SUITE(SGDTest);
 BOOST_AUTO_TEST_CASE(SimpleSGDTestFunction)
 {
   SGDTestFunction f;
-  StandardSGD s(0.0003, 5000000, 1e-9, true);
+  StandardSGD s(0.0003, 1, 5000000, 1e-9, true);
 
   arma::mat coordinates = f.GetInitialPoint();
   double result = s.Optimize(f, coordinates);
@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(GeneralizedRosenbrockTest)
     // Create the generalized Rosenbrock function.
     GeneralizedRosenbrockFunction f(i);
 
-    StandardSGD s(0.001, 0, 1e-15, true);
+    StandardSGD s(0.001, 1, 0, 1e-15, true);
 
     arma::mat coordinates = f.GetInitialPoint();
     double result = s.Optimize(f, coordinates);

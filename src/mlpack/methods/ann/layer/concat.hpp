@@ -34,10 +34,12 @@ namespace ann /** Artificial Neural Network. */ {
  *         arma::sp_mat or arma::cube).
  * @tparam OutputDataType Type of the output data (arma::colvec, arma::mat,
  *         arma::sp_mat or arma::cube).
+ * @tparam CustomLayers Additional custom layers if required.
  */
 template <
     typename InputDataType = arma::mat,
-    typename OutputDataType = arma::mat
+    typename OutputDataType = arma::mat,
+    typename... CustomLayers
 >
 class Concat
 {
@@ -49,6 +51,11 @@ class Concat
    * @param same Merge the error in the backward pass.
    */
   Concat(const bool model = true, const bool same = true);
+
+  /**
+   * Destroy the layers held by the model.
+   */
+  ~Concat();
 
   /**
    * Ordinary feed forward pass of a neural network, evaluating the function
@@ -107,10 +114,10 @@ class Concat
    *
    * @param layer The Layer to be added to the model.
    */
-  void Add(LayerTypes layer) { network.push_back(layer); }
+  void Add(LayerTypes<CustomLayers...> layer) { network.push_back(layer); }
 
   //! Return the model modules.
-  std::vector<LayerTypes>& Model()
+  std::vector<LayerTypes<CustomLayers...> >& Model()
   {
     if (model)
     {
@@ -148,7 +155,7 @@ class Concat
    * Serialize the layer
    */
   template<typename Archive>
-  void Serialize(Archive& /* ar */, const unsigned int /* version */);
+  void serialize(Archive& /* ar */, const unsigned int /* version */);
 
  private:
   //! Parameter which indicates if the modules should be exposed.
@@ -158,7 +165,7 @@ class Concat
   bool same;
 
   //! Locally-stored network modules.
-  std::vector<LayerTypes> network;
+  std::vector<LayerTypes<CustomLayers...> > network;
 
   //! Locally-stored model parameters.
   arma::mat parameters;
@@ -173,7 +180,7 @@ class Concat
   DeleteVisitor deleteVisitor;
 
   //! Locally-stored empty list of modules.
-  std::vector<LayerTypes> empty;
+  std::vector<LayerTypes<CustomLayers...> > empty;
 
   //! Locally-stored delta object.
   arma::mat delta;

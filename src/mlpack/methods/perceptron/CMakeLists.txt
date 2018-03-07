@@ -7,6 +7,9 @@ set(SOURCES
   perceptron_impl.hpp
 )
 
+add_subdirectory(initialization_methods)
+add_subdirectory(learning_policies)
+
 # Add directory name to sources.
 set(DIR_SRCS)
 foreach(file ${SOURCES})
@@ -16,7 +19,5 @@ endforeach()
 # the parent scope).
 set(MLPACK_SRCS ${MLPACK_SRCS} ${DIR_SRCS} PARENT_SCOPE)
 
-add_subdirectory(initialization_methods)
-add_subdirectory(learning_policies)
-
 add_cli_executable(perceptron)
+add_python_binding(perceptron)

@@ -17,7 +17,9 @@
 // Layer modules.
 #include <mlpack/methods/ann/layer/add.hpp>
 #include <mlpack/methods/ann/layer/base_layer.hpp>
+#include <mlpack/methods/ann/layer/bilinear_interpolation.hpp>
 #include <mlpack/methods/ann/layer/constant.hpp>
+#include <mlpack/methods/ann/layer/cross_entropy_error.hpp>
 #include <mlpack/methods/ann/layer/dropout.hpp>
 #include <mlpack/methods/ann/layer/elu.hpp>
 #include <mlpack/methods/ann/layer/hard_tanh.hpp>
@@ -32,6 +34,7 @@
 #include <mlpack/methods/ann/layer/mean_pooling.hpp>
 #include <mlpack/methods/ann/layer/parametric_relu.hpp>
 #include <mlpack/methods/ann/layer/reinforce_normal.hpp>
+#include <mlpack/methods/ann/layer/sigmoid_cross_entropy_error.hpp>
 #include <mlpack/methods/ann/layer/select.hpp>
 
 // Convolution modules.
@@ -42,16 +45,38 @@
 namespace mlpack {
 namespace ann {
 
-template<typename InputDataType, typename OutputDataType> class AddMerge;
-template<typename InputDataType, typename OutputDataType> class Concat;
 template<typename InputDataType, typename OutputDataType> class DropConnect;
 template<typename InputDataType, typename OutputDataType> class Glimpse;
 template<typename InputDataType, typename OutputDataType> class Linear;
 template<typename InputDataType, typename OutputDataType> class LinearNoBias;
 template<typename InputDataType, typename OutputDataType> class LSTM;
-template<typename InputDataType, typename OutputDataType> class Recurrent;
-template<typename InputDataType, typename OutputDataType> class Sequential;
+template<typename InputDataType, typename OutputDataType> class GRU;
+template<typename InputDataType, typename OutputDataType> class FastLSTM;
 template<typename InputDataType, typename OutputDataType> class VRClassReward;
+
+template<typename InputDataType,
+         typename OutputDataType,
+         typename... CustomLayers
+>
+class AddMerge;
+
+template<typename InputDataType,
+         typename OutputDataType,
+         typename... CustomLayers
+>
+class Sequential;
+
+template<typename InputDataType,
+         typename OutputDataType,
+         typename... CustomLayers
+>
+class Recurrent;
+
+template<typename InputDataType,
+         typename OutputDataType,
+         typename... CustomLayers
+>
+class Concat;
 
 template<
     typename OutputLayerType,
@@ -75,6 +100,7 @@ template<
 >
 class RecurrentAttention;
 
+template <typename... CustomLayers>
 using LayerTypes = boost::variant<
     Add<arma::mat, arma::mat>*,
     AddMerge<arma::mat, arma::mat>*,
@@ -82,6 +108,7 @@ using LayerTypes = boost::variant<
     BaseLayer<IdentityFunction, arma::mat, arma::mat>*,
     BaseLayer<TanhFunction, arma::mat, arma::mat>*,
     BaseLayer<RectifierFunction, arma::mat, arma::mat>*,
+    BilinearInterpolation<arma::mat, arma::mat>*,
     Concat<arma::mat, arma::mat>*,
     ConcatPerformance<NegativeLogLikelihood<arma::mat, arma::mat>,
                       arma::mat, arma::mat>*,
@@ -89,6 +116,7 @@ using LayerTypes = boost::variant<
     Convolution<NaiveConvolution<ValidConvolution>,
                 NaiveConvolution<FullConvolution>,
                 NaiveConvolution<ValidConvolution>, arma::mat, arma::mat>*,
+    CrossEntropyError<arma::mat, arma::mat>*,
     DropConnect<arma::mat, arma::mat>*,
     Dropout<arma::mat, arma::mat>*,
     ELU<arma::mat, arma::mat>*,
@@ -101,6 +129,8 @@ using LayerTypes = boost::variant<
     LogSoftMax<arma::mat, arma::mat>*,
     Lookup<arma::mat, arma::mat>*,
     LSTM<arma::mat, arma::mat>*,
+    GRU<arma::mat, arma::mat>*,
+    FastLSTM<arma::mat, arma::mat>*,
     MaxPooling<arma::mat, arma::mat>*,
     MeanPooling<arma::mat, arma::mat>*,
     MeanSquaredError<arma::mat, arma::mat>*,
@@ -110,9 +140,11 @@ using LayerTypes = boost::variant<
     Recurrent<arma::mat, arma::mat>*,
     RecurrentAttention<arma::mat, arma::mat>*,
     ReinforceNormal<arma::mat, arma::mat>*,
+    SigmoidCrossEntropyError<arma::mat, arma::mat>*,
     Select<arma::mat, arma::mat>*,
     Sequential<arma::mat, arma::mat>*,
-    VRClassReward<arma::mat, arma::mat>*
+    VRClassReward<arma::mat, arma::mat>*,
+    CustomLayers*...
 >;
 
 } // namespace ann

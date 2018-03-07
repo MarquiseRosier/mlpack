@@ -15,11 +15,13 @@
 #include <mlpack/prereqs.hpp>
 #include <mlpack/core/util/cli.hpp>
 #include <mlpack/core/data/normalize_labels.hpp>
+#include <mlpack/core/util/mlpack_main.hpp>
 
 #include "naive_bayes_classifier.hpp"
 
 using namespace mlpack;
 using namespace mlpack::naive_bayes;
+using namespace mlpack::util;
 using namespace std;
 using namespace arma;
 
@@ -28,20 +30,43 @@ PROGRAM_INFO("Parametric Naive Bayes Classifier",
     "training set, or loads a model from the given model file, and then may use"
     " that trained model to classify the points in a given test set."
     "\n\n"
-    "Labels are expected to be the last row of the training set "
-    "(--training_file), but labels can also be passed in separately as their "
-    "own file (--labels_file).  If training is not desired, a pre-existing "
-    "model can be loaded with the --input_model_file (-m) option."
+    "The training set is specified with the " +
+    PRINT_PARAM_STRING("training") + " parameter.  Labels may be either the "
+    "last row of the training set, or alternately the " +
+    PRINT_PARAM_STRING("labels") + " parameter may be specified to pass a "
+    "separate matrix of labels."
     "\n\n"
-    "The '--incremental_variance' option can be used to force the training to "
-    "use an incremental algorithm for calculating variance.  This is slower, "
-    "but can help avoid loss of precision in some cases."
+    "If training is not desired, a pre-existing model may be loaded with the " +
+    PRINT_PARAM_STRING("input_model") + " parameter."
     "\n\n"
-    "If classifying a test set is desired, the test set should be in the file "
-    "specified with the --test_file (-T) option, and the classifications will "
-    "be saved to the file specified with the --output_file (-o) option.  If "
-    "saving a trained model is desired, the --output_model_file (-M) option "
-    "should be given.");
+    "\n\n"
+    "The " + PRINT_PARAM_STRING("incremental_variance") + " parameter can be "
+    "used to force the training to use an incremental algorithm for calculating"
+    " variance.  This is slower, but can help avoid loss of precision in some "
+    "cases."
+    "\n\n"
+    "If classifying a test set is desired, the test set may be specified with "
+    "the " + PRINT_PARAM_STRING("test") + " parameter, and the "
+    "classifications may be saved with the " + PRINT_PARAM_STRING("output") +
+    " output parameter.  If saving the trained model is desired, this may be "
+    "done with the " + PRINT_PARAM_STRING("output_model") + " output "
+    "parameter."
+    "\n\n"
+    "For example, to train a Naive Bayes classifier on the dataset " +
+    PRINT_DATASET("data") + " with labels " + PRINT_DATASET("labels") + " "
+    "and save the model to " + PRINT_MODEL("nbc_model") + ", the following "
+    "command may be used:"
+    "\n\n" +
+    PRINT_CALL("nbc", "training", "data", "labels", "labels", "output_model",
+        "nbc_model") +
+    "\n\n"
+    "Then, to use " + PRINT_MODEL("nbc_model") + " to predict the classes of "
+    "the dataset " + PRINT_DATASET("test_set") + " and save the predicted "
+    "classes to " + PRINT_DATASET("predictions") + ", the following command "
+    "may be used:"
+    "\n\n" +
+    PRINT_CALL("nbc", "input_model", "nbc_model", "test", "test_set", "output",
+        "predictions"));
 
 // A struct for saving the model with mappings.
 struct NBCModel
@@ -53,10 +78,10 @@ struct NBCModel
 
   //! Serialize the model.
   template<typename Archive>
-  void Serialize(Archive& ar, const unsigned int /* version */)
+  void serialize(Archive& ar, const unsigned int /* version */)
   {
-    ar & data::CreateNVP(nbc, "nbc");
-    ar & data::CreateNVP(mappings, "mappings");
+    ar & BOOST_SERIALIZATION_NVP(nbc);
+    ar & BOOST_SERIALIZATION_NVP(mappings);
   }
 };
 
@@ -80,49 +105,23 @@ PARAM_UROW_OUT("output", "The matrix in which the predicted labels for the"
 PARAM_MATRIX_OUT("output_probs", "The matrix in which the predicted probability"
     " of labels for the test set will be written.", "p");
 
-int main(int argc, char* argv[])
+static void mlpackMain()
 {
-  CLI::ParseCommandLine(argc, argv);
-
   // Check input parameters.
-  if (CLI::HasParam("training") && CLI::HasParam("input_model"))
-    Log::Fatal << "Cannot specify both --training_file (-t) and "
-        << "--input_model_file (-m)!" << endl;
-
-  if (!CLI::HasParam("training") && !CLI::HasParam("input_model"))
-    Log::Fatal << "Neither --training_file (-t) nor --input_model_file (-m) are"
-        << " specified!" << endl;
-
-  if (!CLI::HasParam("training") && CLI::HasParam("labels"))
-    Log::Warn << "--labels_file (-l) ignored because --training_file (-t) is "
-        << "not specified." << endl;
-  if (!CLI::HasParam("training") && CLI::HasParam("incremental_variance"))
-    Log::Warn << "--incremental_variance (-I) ignored because --training_file "
-        << "(-t) is not specified." << endl;
-
-  if (!CLI::HasParam("output") && !CLI::HasParam("output_model") &&
-      !CLI::HasParam("output_probs"))
-    Log::Warn << "Neither --output_file (-o), nor --output_model_file (-M), nor"
-        << " --output_proba_file (-p) specified; no output will be saved!"
-        << endl;
-
-  if (CLI::HasParam("output") && !CLI::HasParam("test"))
-    Log::Warn << "--output_file (-o) ignored because no test file specified "
-        << "with --test_file (-T)." << endl;
-
-  if (!CLI::HasParam("output") && CLI::HasParam("test"))
-    Log::Warn << "--test_file (-T) specified, but classification results will "
-        << "not be saved because --output_file (-o) is not specified." << endl;
-
-  if (!CLI::HasParam("output_probs") && CLI::HasParam("test"))
-    Log::Warn << "--test_file (-T) specified, but predicted probability of "
-        << "labels will not be saved because --output_probs_file (-p) is not "
-        << "specified." << endl;
+  RequireOnlyOnePassed({ "training", "input_model" }, true);
+  ReportIgnoredParam({{ "training", false }}, "labels");
+  ReportIgnoredParam({{ "training", false }}, "incremental_variance");
+  RequireAtLeastOnePassed({ "output", "output_model", "output_probs" }, false,
+      "no output will be saved");
+  ReportIgnoredParam({{ "test", false }}, "output");
+  if (CLI::HasParam("input_model") && !CLI::HasParam("test"))
+    Log::Warn << "No test set given; no task will be performed!" << std::endl;
 
   // Either we have to train a model, or load a model.
-  NBCModel model;
+  NBCModel* model;
   if (CLI::HasParam("training"))
   {
+    model = new NBCModel();
     mat trainingData = std::move(CLI::GetParam<mat>("training"));
 
     Row<size_t> labels;
@@ -132,7 +131,7 @@ int main(int argc, char* argv[])
     {
       // Load labels.
       Row<size_t> rawLabels = std::move(CLI::GetParam<Row<size_t>>("labels"));
-      data::NormalizeLabels(rawLabels, labels, model.mappings);
+      data::NormalizeLabels(rawLabels, labels, model->mappings);
     }
     else
     {
@@ -140,7 +139,7 @@ int main(int argc, char* argv[])
       Log::Info << "Using last dimension of training data as training labels."
           << endl;
       data::NormalizeLabels(trainingData.row(trainingData.n_rows - 1), labels,
-          model.mappings);
+          model->mappings);
       // Remove the label row.
       trainingData.shed_row(trainingData.n_rows - 1);
     }
@@ -148,14 +147,14 @@ int main(int argc, char* argv[])
     const bool incrementalVariance = CLI::HasParam("incremental_variance");
 
     Timer::Start("nbc_training");
-    model.nbc = NaiveBayesClassifier<>(trainingData, labels,
-        model.mappings.n_elem, incrementalVariance);
+    model->nbc = NaiveBayesClassifier<>(trainingData, labels,
+        model->mappings.n_elem, incrementalVariance);
     Timer::Stop("nbc_training");
   }
   else
   {
     // Load the model from file.
-    model = std::move(CLI::GetParam<NBCModel>("input_model"));
+    model = CLI::GetParam<NBCModel*>("input_model");
   }
 
   // Do we need to do testing?
@@ -163,34 +162,32 @@ int main(int argc, char* argv[])
   {
     mat testingData = std::move(CLI::GetParam<mat>("test"));
 
-    if (testingData.n_rows != model.nbc.Means().n_rows)
+    if (testingData.n_rows != model->nbc.Means().n_rows)
+    {
       Log::Fatal << "Test data dimensionality (" << testingData.n_rows << ") "
-          << "must be the same as training data (" << model.nbc.Means().n_rows
+          << "must be the same as training data (" << model->nbc.Means().n_rows
           << ")!" << std::endl;
+    }
 
     // Time the running of the Naive Bayes Classifier.
     Row<size_t> predictions;
     mat probabilities;
     Timer::Start("nbc_testing");
-    model.nbc.Classify(testingData, predictions, probabilities);
+    model->nbc.Classify(testingData, predictions, probabilities);
     Timer::Stop("nbc_testing");
 
     if (CLI::HasParam("output"))
     {
       // Un-normalize labels to prepare output.
       Row<size_t> rawResults;
-      data::RevertLabels(predictions, model.mappings, rawResults);
+      data::RevertLabels(predictions, model->mappings, rawResults);
 
       // Output results.
       CLI::GetParam<Row<size_t>>("output") = std::move(rawResults);
     }
 
-    if (CLI::HasParam("output_probs"))
-      CLI::GetParam<mat>("output_probs") = probabilities;
+    CLI::GetParam<mat>("output_probs") = probabilities;
   }
 
-  if (CLI::HasParam("output_model"))
-    CLI::GetParam<NBCModel>("output_model") = std::move(model);
-
-  CLI::Destroy();
+  CLI::GetParam<NBCModel*>("output_model") = model;
 }
